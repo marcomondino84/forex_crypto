@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crypto & Forex AI Analyzer - Pro Terminal</title>
+    <title>MK Crypto & Forex - Pro Terminal</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -526,8 +527,9 @@
     <!-- HEADER -->
     <header>
         <div class="brand-section">
+            <img src="favicon.svg" alt="MK Logo" style="width:30px; height:30px; border-radius:50%; box-shadow:0 0 10px rgba(0, 230, 118, 0.4); flex-shrink: 0;">
             <div class="brand-logo">
-                FOREX & CRYPTO <span class="brand-badge">PRO TERMINAL</span>
+                MK CRYPTO & FOREX <span class="brand-badge">PRO TERMINAL</span>
             </div>
             
             <select id="tickerSelect" class="ticker-select">
@@ -1349,6 +1351,10 @@
 
             setInterval(advanceHeatmapStep, 600);
             window.addEventListener('resize', renderFineHeatmap);
+
+            setTimeout(() => {
+                speak(`MK Crypto y Forex activo para ${state.assetName}.`, false);
+            }, 1200);
         }
 
         init();

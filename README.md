@@ -1,4 +1,8 @@
-# Forex & Crypto Pro Terminal
+# MK Crypto & Forex - Pro Terminal
+
+<p align="center">
+  <img src="favicon.svg" alt="MK Crypto & Forex Logo" width="120" height="120">
+</p>
 
 Dashboard institucional en tiempo real para scalping y análisis técnico de Criptomonedas, Forex, Índices y Materias Primas. 
 
@@ -31,3 +35,4 @@ Ejecutado **100% del lado del cliente** en el navegador (HTML5, CSS3, Vanilla JS
    git clone https://github.com/marcomondino84/forex_crypto.git
    ```
 2. Abre `index.html` directamente en cualquier navegador moderno (Chrome, Edge, Firefox, Brave) o alójalo en tu servidor web (XAMPP, Apache, Nginx, GitHub Pages). No requiere bases de datos ni backend adicional.
+
