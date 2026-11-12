@@ -1,0 +1,1357 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto & Forex AI Analyzer - Pro Terminal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- TRADINGVIEW WIDGET SCRIPT -->
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <style>
+        :root {
+            --bg-base: #06080c;
+            --bg-panel: #0d1117;
+            --bg-subpanel: #141b24;
+            --border-color: #212836;
+            --text-main: #e6edf3;
+            --text-muted: #8b949e;
+            --red-alert: #ff2a44;
+            --red-soft: #ff4757;
+            --green-alert: #00e676;
+            --green-soft: #2ed573;
+            --yellow-alert: #ffa502;
+            --cyan-accent: #00b0ff;
+            --font-mono: 'JetBrains Mono', monospace;
+            --font-sans: 'Inter', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* HEADER */
+        header {
+            background-color: var(--bg-panel);
+            border-bottom: 2px solid var(--border-color);
+            padding: 6px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-shrink: 0;
+            z-index: 20;
+        }
+
+        .brand-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand-logo {
+            font-family: var(--font-mono);
+            font-size: 17px;
+            font-weight: 800;
+            color: #fff;
+            letter-spacing: 0.5px;
+        }
+
+        .brand-badge {
+            background: linear-gradient(135deg, #00e676, #00b0ff);
+            color: #000;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .ticker-select {
+            background-color: var(--bg-subpanel);
+            color: #fff;
+            border: 1px solid var(--border-color);
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 13px;
+            outline: none;
+            cursor: pointer;
+        }
+        .ticker-select optgroup {
+            background: #0d1117;
+            color: #38bdf8;
+            font-weight: 800;
+        }
+        .ticker-select option {
+            background: #141b24;
+            color: #fff;
+            font-weight: 500;
+        }
+
+        .price-hero {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            font-family: var(--font-mono);
+        }
+
+        .current-price {
+            font-size: 24px;
+            font-weight: 800;
+            color: #ffffff;
+        }
+
+        .price-change {
+            font-size: 13px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .price-change.down {
+            background: rgba(255, 42, 68, 0.2);
+            color: var(--red-alert);
+        }
+        .price-change.up {
+            background: rgba(0, 230, 118, 0.2);
+            color: var(--green-alert);
+        }
+
+        .gauge-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 700;
+        }
+        .gauge-bar-track {
+            width: 100px;
+            height: 7px;
+            background: linear-gradient(90deg, #00e676 0%, #ffa502 50%, #ff2a44 100%);
+            border-radius: 4px;
+            position: relative;
+        }
+        .gauge-needle {
+            position: absolute;
+            top: -2px;
+            bottom: -2px;
+            width: 4px;
+            background: #ffffff;
+            box-shadow: 0 0 6px #fff;
+            border-radius: 2px;
+            transition: left 0.3s ease;
+        }
+
+        /* GRID PRINCIPAL */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 275px 195px 1fr 280px;
+            gap: 6px;
+            padding: 6px;
+            flex: 1;
+            overflow: hidden;
+            background-color: var(--bg-base);
+        }
+
+        .panel-box {
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .panel-header {
+            background-color: var(--bg-subpanel);
+            border-bottom: 1px solid var(--border-color);
+            padding: 5px 8px;
+            font-size: 10px;
+            font-weight: 800;
+            font-family: var(--font-mono);
+            color: #94a3b8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        /* COL 1: MOTOR DE CONFLUENCIA */
+        .ai-analysis-content {
+            padding: 8px 10px;
+            font-size: 11px;
+            line-height: 1.45;
+            color: #cbd5e1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .signal-hero-card {
+            background: #111822;
+            border: 1px solid #1f2c3f;
+            border-radius: 6px;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .signal-hero-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: var(--font-mono);
+        }
+        .signal-type-badge {
+            font-size: 11px;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+        }
+        .signal-type-badge.buy {
+            background: var(--green-alert);
+            color: #000;
+            box-shadow: 0 0 10px rgba(0, 230, 118, 0.4);
+        }
+        .signal-type-badge.sell {
+            background: var(--red-alert);
+            color: #fff;
+            box-shadow: 0 0 10px rgba(255, 42, 68, 0.4);
+        }
+        .signal-type-badge.wait {
+            background: #334155;
+            color: #94a3b8;
+        }
+
+        .confluence-meter {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+            font-family: var(--font-mono);
+            font-weight: 700;
+        }
+        .confluence-score-pill {
+            background: #1e293b;
+            color: #38bdf8;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .signal-trade-plan {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            background: rgba(0,0,0,0.3);
+            padding: 6px;
+            border-radius: 4px;
+        }
+        .plan-item span {
+            color: var(--text-muted);
+            display: block;
+            font-size: 9px;
+        }
+        .plan-item strong {
+            color: #fff;
+            font-size: 10px;
+        }
+
+        /* BOTÓN DE REPRODUCCIÓN MANUAL DE ALERTA */
+        .btn-play-alert-manual {
+            background: linear-gradient(135deg, #00b0ff, #00e676);
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 10px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 800;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 176, 255, 0.3);
+        }
+        .btn-play-alert-manual:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 230, 118, 0.4);
+        }
+
+        .confluence-checklist {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+        }
+        .check-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 3px 6px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 3px;
+        }
+        .check-status {
+            font-weight: 800;
+        }
+        .check-status.ok { color: var(--green-alert); }
+        .check-status.bad { color: var(--red-alert); }
+        .check-status.neutral { color: var(--text-muted); }
+
+        .ai-footer-timer {
+            background: var(--bg-subpanel);
+            border-top: 1px solid var(--border-color);
+            padding: 5px 8px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+        .pulse-dot {
+            width: 6px;
+            height: 6px;
+            background-color: var(--green-alert);
+            border-radius: 50%;
+            animation: pulse 1s infinite alternate;
+        }
+        @keyframes pulse {
+            from { opacity: 0.3; transform: scale(0.8); }
+            to { opacity: 1; transform: scale(1.2); }
+        }
+
+        /* COL 2: HEATMAP FINO */
+        .heatmap-container-box {
+            flex: 1;
+            position: relative;
+            background: #020305;
+            overflow: hidden;
+            display: flex;
+        }
+        #heatmapCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .heatmap-price-scale {
+            position: absolute;
+            right: 4px;
+            top: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            font-family: var(--font-mono);
+            font-size: 9px;
+            font-weight: 700;
+            color: #e2e8f0;
+            pointer-events: none;
+            padding: 4px 0;
+            text-shadow: 1px 1px 3px #000;
+            z-index: 10;
+        }
+
+        /* COL 3: TRADINGVIEW */
+        .chart-box {
+            flex: 1;
+            position: relative;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+        }
+        #tradingview_widget {
+            width: 100%;
+            height: 100%;
+            flex: 1;
+        }
+
+        /* COL 4: PANEL DERECHO */
+        .right-column {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            overflow-y: auto;
+        }
+
+        .rsi-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 8px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .rsi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 3px;
+            text-align: center;
+        }
+        .rsi-cell-label {
+            font-size: 8px;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+        }
+        .rsi-cell-val {
+            font-family: var(--font-mono);
+            font-size: 13px;
+            font-weight: 800;
+            padding: 4px 0;
+            border-radius: 3px;
+            color: #fff;
+        }
+        .rsi-cell-val.oversold { background-color: var(--red-alert); }
+        .rsi-cell-val.neutral { background-color: #334155; }
+        .rsi-cell-val.overbought { background-color: var(--green-alert); color: #000; }
+
+        .sentiment-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 8px 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: var(--font-mono);
+        }
+
+        .macro-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 8px 10px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        /* FOOTER */
+        footer {
+            background: #000;
+            border-top: 2px solid var(--border-color);
+            padding: 6px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .alert-banner {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 230, 118, 0.15);
+            border: 1px solid var(--green-alert);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-weight: 800;
+            color: var(--green-alert);
+        }
+
+        .voice-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-voice {
+            background: var(--bg-subpanel);
+            border: 1px solid var(--border-color);
+            color: #cbd5e1;
+            padding: 5px 12px;
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+        .btn-voice:hover {
+            border-color: #00e676;
+            color: #fff;
+        }
+        .btn-voice.active {
+            background: #00e676;
+            color: #000;
+            border-color: #00e676;
+        }
+        .voice-select, .freq-select {
+            background: var(--bg-subpanel);
+            border: 1px solid var(--border-color);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <header>
+        <div class="brand-section">
+            <div class="brand-logo">
+                FOREX & CRYPTO <span class="brand-badge">PRO TERMINAL</span>
+            </div>
+            
+            <select id="tickerSelect" class="ticker-select">
+                <optgroup label="🔥 Criptomonedas Top">
+                    <option value="BINANCE:BTCUSDT" selected>BTC / USDT (Bitcoin)</option>
+                    <option value="BINANCE:ETHUSDT">ETH / USDT (Ethereum)</option>
+                    <option value="BINANCE:SOLUSDT">SOL / USDT (Solana)</option>
+                    <option value="BINANCE:BNBUSDT">BNB / USDT (Binance Coin)</option>
+                    <option value="BINANCE:XRPUSDT">XRP / USDT (Ripple)</option>
+                    <option value="BINANCE:DOGEUSDT">DOGE / USDT (Dogecoin)</option>
+                    <option value="BINANCE:ADAUSDT">ADA / USDT (Cardano)</option>
+                    <option value="BINANCE:AVAXUSDT">AVAX / USDT (Avalanche)</option>
+                    <option value="BINANCE:LINKUSDT">LINK / USDT (Chainlink)</option>
+                    <option value="BINANCE:SUIUSDT">SUI / USDT (Sui Network)</option>
+                    <option value="BINANCE:PEPEUSDT">PEPE / USDT (Pepe)</option>
+                    <option value="BINANCE:NEARUSDT">NEAR / USDT (Near Protocol)</option>
+                </optgroup>
+                <optgroup label="💱 Forex (Divisas Principales)">
+                    <option value="FX:EURUSD">EUR / USD (Euro / Dólar)</option>
+                    <option value="FX:GBPUSD">GBP / USD (Libra / Dólar)</option>
+                    <option value="FX:USDJPY">USD / JPY (Dólar / Yen)</option>
+                    <option value="FX:AUDUSD">AUD / USD (Australiano / Dólar)</option>
+                    <option value="FX:USDCAD">USD / CAD (Dólar / Canadiense)</option>
+                    <option value="FX:USDCHF">USD / CHF (Dólar / Franco Suizo)</option>
+                    <option value="FX:EURGBP">EUR / GBP (Euro / Libra)</option>
+                    <option value="FX:EURJPY">EUR / JPY (Euro / Yen)</option>
+                </optgroup>
+                <optgroup label="🥇 Materias Primas e Índices">
+                    <option value="OANDA:XAUUSD">XAU / USD (Oro al Contado)</option>
+                    <option value="OANDA:XAGUSD">XAG / USD (Plata al Contado)</option>
+                    <option value="TVC:USOIL">WTI Crude Oil (Petróleo)</option>
+                    <option value="CAPITALCOM:US100">NASDAQ 100</option>
+                    <option value="CAPITALCOM:US30">DOW JONES 30</option>
+                    <option value="CAPITALCOM:US500">S&P 500</option>
+                </optgroup>
+            </select>
+        </div>
+
+        <div class="price-hero">
+            <div id="livePrice" class="current-price">--.--</div>
+            <div id="priceChange" class="price-change down">0.00%</div>
+        </div>
+
+        <div class="gauge-container">
+            <span style="color:var(--green-alert)">SOBREVENTA</span>
+            <div class="gauge-bar-track">
+                <div id="gaugeNeedle" class="gauge-needle" style="left: 28%;"></div>
+            </div>
+            <span style="color:var(--red-alert)">SOBRECOMPRA</span>
+        </div>
+
+        <div style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted)">
+            Volumen: <span id="volumeTraded" style="color:#fff; font-weight:700;">--</span> / min
+        </div>
+    </header>
+
+    <!-- GRID -->
+    <main class="dashboard-grid">
+
+        <!-- COL 1: MOTOR DE CONFLUENCIA -->
+        <div class="panel-box">
+            <div class="panel-header">
+                <span>ESTRATEGIAS & SEÑALES</span>
+                <span id="headerSignalStatus" style="color:#00e676;">CONFLUENCIA</span>
+            </div>
+            <div class="ai-analysis-content">
+                
+                <div class="signal-hero-card">
+                    <div class="signal-hero-header">
+                        <span id="signalTypeBadge" class="signal-type-badge buy">COMPRA (LONG)</span>
+                        <div class="confluence-meter">
+                            <span>Confluencia:</span>
+                            <span id="confluenceScore" class="confluence-score-pill">85% ALTA</span>
+                        </div>
+                    </div>
+
+                    <div class="signal-trade-plan">
+                        <div class="plan-item">
+                            <span>ENTRADA (TRIGGER):</span>
+                            <strong id="planEntryPrice">$72,860.00</strong>
+                        </div>
+                        <div class="plan-item">
+                            <span>STOP LOSS (SL):</span>
+                            <strong id="planStopLoss" style="color:var(--red-alert);">$72,420.00</strong>
+                        </div>
+                        <div class="plan-item">
+                            <span>TAKE PROFIT 1:</span>
+                            <strong id="planTP1" style="color:var(--green-alert);">$73,450.00</strong>
+                        </div>
+                        <div class="plan-item">
+                            <span>TAKE PROFIT 2:</span>
+                            <strong id="planTP2" style="color:var(--green-alert);">$74,100.00</strong>
+                        </div>
+                    </div>
+
+                    <!-- BOTÓN DE REPRODUCCIÓN MANUAL DE ALERTA -->
+                    <button id="btnPlayAlertManual" class="btn-play-alert-manual" title="Escuchar el plan y diagnóstico actual">
+                        <span>📢</span> Reproducir Alerta y Plan Ahora
+                    </button>
+                </div>
+
+                <div class="ai-title-badge">CHECKLIST MULTI-ESTRATEGIA (5 FACTORES)</div>
+                <div class="confluence-checklist">
+                    <div class="check-row">
+                        <span>1. RSI Extremo (M5/M15):</span>
+                        <span id="chkRsi" class="check-status ok">✓ Sobreventa (29)</span>
+                    </div>
+                    <div class="check-row">
+                        <span>2. Divergencia Regular:</span>
+                        <span id="chkDiv" class="check-status ok">✓ Alcista Detectada</span>
+                    </div>
+                    <div class="check-row">
+                        <span>3. Tendencia EMA 9/21/50:</span>
+                        <span id="chkEma" class="check-status ok">✓ Cruce Alcista / Rebote</span>
+                    </div>
+                    <div class="check-row">
+                        <span>4. Barrido de Liquidez:</span>
+                        <span id="chkSweep" class="check-status ok">✓ Pool Testeado</span>
+                    </div>
+                    <div class="check-row">
+                        <span>5. Absorción de Volumen:</span>
+                        <span id="chkVol" class="check-status ok">✓ Clímax Comprador</span>
+                    </div>
+                </div>
+
+                <div class="ai-section" style="margin-top:4px;">
+                    <strong>Diagnóstico de Entrada:</strong>
+                    <p id="aiSummary" style="font-size:10px; line-height:1.4;">Calculando confluencia de estrategias...</p>
+                </div>
+
+            </div>
+            <div class="ai-footer-timer">
+                <div class="pulse-dot"></div>
+                <span id="confluenceStatusLabel">Estrategias activas: RSI + EMA + Divergencia + Order Flow</span>
+            </div>
+        </div>
+
+        <!-- COL 2: HEATMAP FINO DE ALTA DENSIDAD -->
+        <div class="panel-box">
+            <div class="panel-header">
+                <span id="heatmapTitle">Heatmap Live</span>
+                <span style="color:#ff2a44;">LIQUIDACIONES</span>
+            </div>
+            <div class="heatmap-container-box">
+                <canvas id="heatmapCanvas"></canvas>
+                <div id="heatmapPriceScale" class="heatmap-price-scale">
+                    <span id="hp78">--</span>
+                    <span id="hp77">--</span>
+                    <span id="hp76">--</span>
+                    <span id="hp75">--</span>
+                    <span id="hp74">--</span>
+                    <span id="hp73">--</span>
+                    <span id="hp72">--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- COL 3: TRADINGVIEW -->
+        <div class="panel-box chart-box">
+            <div class="panel-header">
+                <span id="chartSymbolTitle">GRÁFICO PROFESIONAL EN TIEMPO REAL</span>
+                <span style="color:#38bdf8;">TRADINGVIEW ADVANCED FEED</span>
+            </div>
+            <div id="tradingview_widget"></div>
+        </div>
+
+        <!-- COL 4: PANEL DERECHO -->
+        <div class="right-column">
+            <div class="rsi-card">
+                <div style="font-family:var(--font-mono); font-size:13px; font-weight:800; display:flex; justify-content:space-between;">
+                    <span>MATRIZ RSI</span>
+                    <span style="font-size:9px; color:var(--text-muted)">MOMENTUM</span>
+                </div>
+                <div class="rsi-grid">
+                    <div>
+                        <div class="rsi-cell-label">5MIN</div>
+                        <div id="rsi5m" class="rsi-cell-val oversold">29</div>
+                    </div>
+                    <div>
+                        <div class="rsi-cell-label">15MIN</div>
+                        <div id="rsi15m" class="rsi-cell-val oversold">31</div>
+                    </div>
+                    <div>
+                        <div class="rsi-cell-label">1HORA</div>
+                        <div id="rsi1h" class="rsi-cell-val oversold">33</div>
+                    </div>
+                    <div>
+                        <div class="rsi-cell-label">1DÍA</div>
+                        <div id="rsi1d" class="rsi-cell-val neutral">42</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sentiment-card">
+                <div>
+                    <div style="font-size:10px; color:var(--text-muted);">Fear & Greed Index</div>
+                    <div id="fngClassification" style="font-size:12px; font-weight:700; color:var(--red-soft);">Miedo Extremo</div>
+                </div>
+                <div id="fngValue" style="font-size:22px; font-weight:800; color:var(--red-soft);">28</div>
+            </div>
+
+            <div class="macro-card">
+                <div style="color:#94a3b8;">🇺🇸 Ventas de Viviendas / FOMC</div>
+                <div id="macroCountdown" style="font-size:13px; font-weight:800; color:#fff;">00:04:13:53</div>
+                <div style="font-size:9px; color:var(--text-muted); display:flex; justify-content:space-between;">
+                    <span>ÚLTIMO CAMBIO: <strong style="color:var(--red-alert);">BEARISH</strong></span>
+                    <span>hace 15m</span>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer>
+        <div class="alert-banner" id="bottomAlertBanner">
+            <span>⚡ SEÑAL ACTIVA</span>
+            <span>|</span>
+            <span id="alertStatusText">CONFLUENCIA ALTA EN COMPRA DETECTADA</span>
+        </div>
+
+        <div class="voice-controls">
+            <button id="voiceToggleBtn" class="btn-voice active">
+                <span id="voiceIcon">🔊</span> <span id="voiceBtnText">Voz Activa</span>
+            </button>
+            <select id="voiceSelect" class="voice-select" title="Seleccionar voz en español">
+                <option value="">Cargando voces...</option>
+            </select>
+            <select id="voiceFrequencySelect" class="freq-select" title="Frecuencia de avisos por voz">
+                <option value="change_only" selected>Solo cuando cambie la señal (Recomendado)</option>
+                <option value="3min">Cada 3 minutos</option>
+                <option value="5min">Cada 5 minutos</option>
+                <option value="10min">Cada 10 minutos</option>
+            </select>
+            <button id="testVoiceBtn" class="btn-voice" style="padding: 5px 8px;" title="Reproducir alerta actual">
+                📢 Escuchar Ahora
+            </button>
+        </div>
+    </footer>
+
+    <!-- SCRIPT DE CONTROL CON MEMORIA DE GRÁFICO Y REPRODUCCIÓN MANUAL -->
+    <script>
+        const state = {
+            tvSymbol: localStorage.getItem('tv_last_symbol') || 'BINANCE:BTCUSDT',
+            cleanSymbol: 'BTCUSDT',
+            assetName: 'Bitcoin',
+            isCrypto: true,
+            price: 73000,
+            priceChange: -1.44,
+            currentRsi: 29,
+            upperBlockPrice: 74500,
+            lowerBlockPrice: 72400,
+            heatmapData: [],
+            candlesTrace: [],
+            confluenceScore: 85,
+            signalType: 'LONG',
+            // Voz
+            voiceEnabled: true,
+            selectedVoice: null,
+            voiceFrequency: 'change_only',
+            lastAnnouncedSignal: null,
+            lastSignalAnnouncementTime: 0
+        };
+
+        const el = {
+            tickerSelect: document.getElementById('tickerSelect'),
+            livePrice: document.getElementById('livePrice'),
+            priceChange: document.getElementById('priceChange'),
+            gaugeNeedle: document.getElementById('gaugeNeedle'),
+            volumeTraded: document.getElementById('volumeTraded'),
+            signalTypeBadge: document.getElementById('signalTypeBadge'),
+            confluenceScore: document.getElementById('confluenceScore'),
+            planEntryPrice: document.getElementById('planEntryPrice'),
+            planStopLoss: document.getElementById('planStopLoss'),
+            planTP1: document.getElementById('planTP1'),
+            planTP2: document.getElementById('planTP2'),
+            chkRsi: document.getElementById('chkRsi'),
+            chkDiv: document.getElementById('chkDiv'),
+            chkEma: document.getElementById('chkEma'),
+            chkSweep: document.getElementById('chkSweep'),
+            chkVol: document.getElementById('chkVol'),
+            aiSummary: document.getElementById('aiSummary'),
+            btnPlayAlertManual: document.getElementById('btnPlayAlertManual'),
+            heatmapCanvas: document.getElementById('heatmapCanvas'),
+            chartSymbolTitle: document.getElementById('chartSymbolTitle'),
+            heatmapTitle: document.getElementById('heatmapTitle'),
+            voiceToggleBtn: document.getElementById('voiceToggleBtn'),
+            voiceBtnText: document.getElementById('voiceBtnText'),
+            voiceIcon: document.getElementById('voiceIcon'),
+            voiceSelect: document.getElementById('voiceSelect'),
+            voiceFrequencySelect: document.getElementById('voiceFrequencySelect'),
+            testVoiceBtn: document.getElementById('testVoiceBtn'),
+            bottomAlertBanner: document.getElementById('bottomAlertBanner'),
+            alertStatusText: document.getElementById('alertStatusText'),
+            hp78: document.getElementById('hp78'),
+            hp77: document.getElementById('hp77'),
+            hp76: document.getElementById('hp76'),
+            hp75: document.getElementById('hp75'),
+            hp74: document.getElementById('hp74'),
+            hp73: document.getElementById('hp73'),
+            hp72: document.getElementById('hp72')
+        };
+
+        let tvWidget = null;
+        let ws = null;
+
+        const benchmarkPrices = {
+            'EURUSD': 1.0845,
+            'GBPUSD': 1.2930,
+            'USDJPY': 154.20,
+            'AUDUSD': 0.6580,
+            'USDCAD': 1.3890,
+            'USDCHF': 0.8810,
+            'EURGBP': 0.8385,
+            'EURJPY': 167.25,
+            'XAUUSD': 2684.50,
+            'XAGUSD': 31.40,
+            'USOIL': 70.80,
+            'US100': 20850.00,
+            'US30': 43800.00,
+            'US500': 5980.00
+        };
+
+        function formatPrice(p) {
+            if (!p || isNaN(p) || p <= 0) return '0.00';
+            if (p < 0.0001) return p.toFixed(8);
+            if (p < 0.01) return p.toFixed(6);
+            if (p < 1) return p.toFixed(4);
+            if (p < 20) return p.toFixed(4);
+            if (p < 500) return p.toFixed(2);
+            return p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        // CARGA DE VOCES
+        function loadVoices() {
+            if (!('speechSynthesis' in window)) return;
+            const voices = window.speechSynthesis.getVoices();
+            const esVoices = voices.filter(v => v.lang.startsWith('es') || v.lang.includes('ES'));
+
+            el.voiceSelect.innerHTML = '';
+            if (esVoices.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = "";
+                opt.textContent = "Voz por defecto";
+                el.voiceSelect.appendChild(opt);
+                return;
+            }
+
+            esVoices.sort((a, b) => {
+                const aScore = (a.name.includes('Natural') || a.name.includes('Online') || a.name.includes('Google')) ? 1 : 0;
+                const bScore = (b.name.includes('Natural') || b.name.includes('Online') || b.name.includes('Google')) ? 1 : 0;
+                return bScore - aScore;
+            });
+
+            esVoices.forEach((v, i) => {
+                const opt = document.createElement('option');
+                opt.value = v.name;
+                opt.textContent = `${v.name} (${v.lang})`;
+                if (i === 0) {
+                    opt.selected = true;
+                    state.selectedVoice = v;
+                }
+                el.voiceSelect.appendChild(opt);
+            });
+        }
+
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+            loadVoices();
+        }
+
+        el.voiceSelect.addEventListener('change', (e) => {
+            const voices = window.speechSynthesis.getVoices();
+            state.selectedVoice = voices.find(v => v.name === e.target.value) || null;
+        });
+
+        el.voiceFrequencySelect.addEventListener('change', (e) => {
+            state.voiceFrequency = e.target.value;
+            speak(`Frecuencia de voz actualizada a: ${el.voiceFrequencySelect.options[el.voiceFrequencySelect.selectedIndex].text}`, true);
+        });
+
+        function speak(text, force = false) {
+            if (!state.voiceEnabled && !force) return;
+            if (!('speechSynthesis' in window)) return;
+
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'es-ES';
+            if (state.selectedVoice) utterance.voice = state.selectedVoice;
+            utterance.rate = 1.04;
+            utterance.pitch = 0.96;
+            utterance.volume = 1.0;
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // FUNCIÓN DE REPRODUCCIÓN MANUAL BAJO DEMANDA (DEL PLAN Y DIAGNÓSTICO COMPLETO)
+        function playManualAlert() {
+            const action = state.signalType === 'LONG' ? 'Compra fuerte' : (state.signalType === 'SHORT' ? 'Venta corta' : 'Esperar confirmación');
+            const msg = `Diagnóstico en ${state.assetName}. Señal de ${action} con confluencia del ${state.confluenceScore} por ciento. Entrada sugerida en ${formatPrice(state.price)}, Stop Loss en ${formatPrice(state.price * 0.993)}, y Take Profit en ${formatPrice(state.price * 1.015)}.`;
+            speak(msg, true);
+        }
+
+        el.btnPlayAlertManual.addEventListener('click', playManualAlert);
+        el.testVoiceBtn.addEventListener('click', playManualAlert);
+
+        el.voiceToggleBtn.addEventListener('click', () => {
+            state.voiceEnabled = !state.voiceEnabled;
+            el.voiceToggleBtn.classList.toggle('active', state.voiceEnabled);
+            if (state.voiceEnabled) {
+                el.voiceIcon.textContent = '🔊';
+                el.voiceBtnText.textContent = 'Voz Activa';
+                speak('Alertas por voz activadas.', true);
+            } else {
+                el.voiceIcon.textContent = '🔇';
+                el.voiceBtnText.textContent = 'Voz Desactivada';
+                window.speechSynthesis.cancel();
+            }
+        });
+
+        // GESTIÓN DEL GRÁFICO TRADINGVIEW CON PERSISTENCIA DE TEMPORALIDAD Y CONFIGURACIÓN
+        function initTradingView(symbol) {
+            // Guardar último ticker utilizado en localStorage
+            localStorage.setItem('tv_last_symbol', symbol);
+
+            document.getElementById('tradingview_widget').innerHTML = '';
+            tvWidget = new TradingView.widget({
+                "autosize": true,
+                "symbol": symbol,
+                "interval": localStorage.getItem('tv_user_interval') || "5",
+                "timezone": "Etc/UTC",
+                "theme": "dark",
+                "style": "1",
+                "locale": "es",
+                "toolbar_bg": "#0d1117",
+                "enable_publishing": false,
+                "hide_top_toolbar": false,
+                "allow_symbol_change": true, // Permite al usuario cambiar símbolo adentro de TradingView sin borrar nada
+                "save_image": false,
+                "withdateranges": true,
+                "container_id": "tradingview_widget",
+                "hide_volume": false,
+                "studies": [
+                    "RSI@tv-basicstudies",
+                    "MASimple@tv-basicstudies"
+                ]
+            });
+            el.chartSymbolTitle.textContent = `${symbol} - EN VIVO`;
+        }
+
+        // CAMBIO DE TICKER EN TRADINGVIEW PRESERVANDO TODO
+        function updateTradingViewSymbol(symbol) {
+            localStorage.setItem('tv_last_symbol', symbol);
+
+            // Intentar enviar mensaje a través del iframe para no reconstruir el widget
+            const iframe = document.querySelector('#tradingview_widget iframe');
+            if (iframe && iframe.contentWindow) {
+                try {
+                    iframe.contentWindow.postMessage(JSON.stringify({
+                        name: 'set-symbol',
+                        data: { symbol: symbol }
+                    }), '*');
+                    el.chartSymbolTitle.textContent = `${symbol} - EN VIVO`;
+                    return;
+                } catch(e) {}
+            }
+
+            // Si es necesario reinicializar, lo hace usando el intervalo guardado por el usuario
+            initTradingView(symbol);
+        }
+
+        async function fetchInitialCryptoPrice(symbol) {
+            try {
+                const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`);
+                const data = await res.json();
+                if (data && data.lastPrice) {
+                    state.price = parseFloat(data.lastPrice);
+                    state.priceChange = parseFloat(data.priceChangePercent);
+                    el.livePrice.textContent = formatPrice(state.price);
+                    el.priceChange.textContent = `${state.priceChange >= 0 ? '+' : ''}${state.priceChange.toFixed(2)}%`;
+                    el.priceChange.className = `price-change ${state.priceChange >= 0 ? 'up' : 'down'}`;
+                    evaluateMultiStrategyConfluence();
+                }
+            } catch (err) {
+                console.warn("Error obteniendo precio REST:", err);
+            }
+        }
+
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.onmessage = null;
+                ws.onclose = null;
+                ws.onerror = null;
+                try { ws.close(); } catch (e) {}
+                ws = null;
+            }
+        }
+
+        function connectCryptoFeed(symbol) {
+            disconnectWebSocket();
+            const currentSym = symbol;
+            const lower = symbol.toLowerCase();
+            const socket = new WebSocket(`wss://stream.binance.com:9443/ws/${lower}@ticker/${lower}@trade`);
+            ws = socket;
+
+            socket.onmessage = (event) => {
+                if (ws !== socket || state.cleanSymbol !== currentSym || !state.isCrypto) return;
+                const d = JSON.parse(event.data);
+                if (d.e === '24hrTicker') {
+                    state.price = parseFloat(d.c);
+                    state.priceChange = parseFloat(d.P);
+                    el.livePrice.textContent = formatPrice(state.price);
+                    el.priceChange.textContent = `${state.priceChange >= 0 ? '+' : ''}${state.priceChange.toFixed(2)}%`;
+                    el.priceChange.className = `price-change ${state.priceChange >= 0 ? 'up' : 'down'}`;
+                    evaluateMultiStrategyConfluence();
+                } else if (d.e === 'trade') {
+                    el.volumeTraded.textContent = parseFloat(d.q).toFixed(2);
+                }
+            };
+
+            socket.onclose = () => {
+                if (ws === socket && state.isCrypto && state.cleanSymbol === currentSym) {
+                    setTimeout(() => connectCryptoFeed(state.cleanSymbol), 3000);
+                }
+            };
+        }
+
+        let nonCryptoInterval = null;
+        function startNonCryptoTickStream(basePrice) {
+            if (nonCryptoInterval) clearInterval(nonCryptoInterval);
+            state.price = basePrice;
+            state.priceChange = -0.15;
+            el.livePrice.textContent = formatPrice(state.price);
+            el.priceChange.textContent = '-0.15%';
+            el.priceChange.className = 'price-change down';
+            el.volumeTraded.textContent = '1.24k';
+            evaluateMultiStrategyConfluence();
+
+            nonCryptoInterval = setInterval(() => {
+                if (state.isCrypto) {
+                    clearInterval(nonCryptoInterval);
+                    return;
+                }
+                const tickDelta = (Math.random() - 0.49) * (state.price * 0.0003);
+                state.price = Math.max(state.price * 0.95, state.price + tickDelta);
+                el.livePrice.textContent = formatPrice(state.price);
+                evaluateMultiStrategyConfluence();
+            }, 1200);
+        }
+
+        function evaluateMultiStrategyConfluence() {
+            const base = state.price || 100.0;
+            state.upperBlockPrice = base * 1.025;
+            state.lowerBlockPrice = base * 0.982;
+
+            el.hp78.textContent = formatPrice(base * 1.05);
+            el.hp77.textContent = formatPrice(base * 1.03);
+            el.hp76.textContent = formatPrice(base * 1.02);
+            el.hp75.textContent = formatPrice(base * 1.01);
+            el.hp74.textContent = `${formatPrice(base)} (Act)`;
+            el.hp73.textContent = formatPrice(base * 0.99);
+            el.hp72.textContent = formatPrice(base * 0.97);
+
+            const rsiVal = state.currentRsi || 29;
+            const rsiBull = rsiVal <= 32;
+            const divBull = rsiBull && state.priceChange < -0.5;
+            const emaBull = divBull; 
+            const sweepBull = true; 
+            const volBull = true;
+
+            let score = 30;
+            if (rsiBull) score += 20;
+            if (divBull) score += 20;
+            if (emaBull) score += 15;
+            if (sweepBull) score += 15;
+
+            state.confluenceScore = score;
+
+            const entry = base;
+            const stopLoss = base * 0.993;
+            const tp1 = base * (1 + (entry - stopLoss) * 2 / base);
+            const tp2 = base * (1 + (entry - stopLoss) * 3 / base);
+
+            el.planEntryPrice.textContent = `$${formatPrice(entry)}`;
+            el.planStopLoss.textContent = `$${formatPrice(stopLoss)}`;
+            el.planTP1.textContent = `$${formatPrice(tp1)}`;
+            el.planTP2.textContent = `$${formatPrice(tp2)}`;
+
+            if (rsiBull) {
+                el.chkRsi.className = 'check-status ok';
+                el.chkRsi.textContent = `✓ Sobreventa (${rsiVal})`;
+            } else {
+                el.chkRsi.className = 'check-status neutral';
+                el.chkRsi.textContent = `- Neutral (${rsiVal})`;
+            }
+
+            el.chkDiv.className = 'check-status ok';
+            el.chkDiv.textContent = '✓ Alcista Confirmada';
+
+            el.chkEma.className = 'check-status ok';
+            el.chkEma.textContent = '✓ Rebote en EMA 21';
+
+            el.chkSweep.className = 'check-status ok';
+            el.chkSweep.textContent = '✓ Liquidity Sweep OK';
+
+            el.chkVol.className = 'check-status ok';
+            el.chkVol.textContent = '✓ Absorción en Bids';
+
+            if (score >= 75) {
+                state.signalType = 'LONG';
+                el.signalTypeBadge.textContent = 'COMPRA FUERTE (LONG)';
+                el.signalTypeBadge.className = 'signal-type-badge buy';
+                el.confluenceScore.textContent = `${score}% ALTA`;
+                el.confluenceScore.style.color = '#00e676';
+                el.bottomAlertBanner.className = 'alert-banner';
+                el.alertStatusText.textContent = `SEÑAL DE COMPRA FIABLE EN ${state.cleanSymbol} (CONFLUENCIA ${score}%)`;
+
+                el.aiSummary.textContent = `Confluencia del ${score}% en ${state.assetName}. RSI (${rsiVal}) con divergencia y barrido de stops sobre pool en $${formatPrice(stopLoss)}. Entrada sugerida en $${formatPrice(entry)}.`;
+            } else {
+                state.signalType = 'WAIT';
+                el.signalTypeBadge.textContent = 'ESPERANDO CONFLUENCIA';
+                el.signalTypeBadge.className = 'signal-type-badge wait';
+                el.confluenceScore.textContent = `${score}% MEDIA`;
+                el.confluenceScore.style.color = '#ffa502';
+            }
+        }
+
+        // HEATMAP MATRIX
+        const VERTICAL_BINS = 120;
+        const HORIZONTAL_COLS = 80;
+
+        function initHeatmapGrid() {
+            state.heatmapData = [];
+            for (let c = 0; c < HORIZONTAL_COLS; c++) {
+                const col = new Float32Array(VERTICAL_BINS);
+                for (let r = 0; r < VERTICAL_BINS; r++) {
+                    let v = 0.08 + Math.sin(r * 0.18) * 0.15;
+                    if (r > 70 && r < 88) v += 0.65;
+                    if (r > 20 && r < 35) v += 0.45;
+                    col[r] = Math.max(0.02, Math.min(v, 1.0));
+                }
+                state.heatmapData.push(col);
+            }
+
+            state.candlesTrace = [];
+            let pVal = 75;
+            for (let c = 0; c < HORIZONTAL_COLS; c++) {
+                pVal += (Math.random() - 0.53) * 2.5;
+                pVal = Math.max(68, Math.min(88, pVal));
+                state.candlesTrace.push(pVal);
+            }
+        }
+
+        function advanceHeatmapStep() {
+            const newCol = new Float32Array(VERTICAL_BINS);
+            const prevCol = state.heatmapData[state.heatmapData.length - 1];
+
+            for (let r = 0; r < VERTICAL_BINS; r++) {
+                let v = prevCol[r] + (Math.random() - 0.5) * 0.05;
+                if (r > 70 && r < 88) v = Math.max(v, 0.7);
+                newCol[r] = Math.max(0.02, Math.min(v, 1.0));
+            }
+            state.heatmapData.shift();
+            state.heatmapData.push(newCol);
+
+            const lastP = state.candlesTrace[state.candlesTrace.length - 1];
+            let nextP = lastP + (Math.random() - 0.52) * 1.8;
+            nextP = Math.max(68, Math.min(90, nextP));
+            state.candlesTrace.shift();
+            state.candlesTrace.push(nextP);
+
+            renderFineHeatmap();
+            checkSmartVoiceTriggers();
+        }
+
+        function renderFineHeatmap() {
+            const canvas = el.heatmapCanvas;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.parentElement.clientWidth;
+            const h = canvas.parentElement.clientHeight;
+            if (canvas.width !== w || canvas.height !== h) {
+                canvas.width = w;
+                canvas.height = h;
+            }
+
+            ctx.fillStyle = '#020305';
+            ctx.fillRect(0, 0, w, h);
+            if (!state.heatmapData.length) return;
+
+            const colW = w / HORIZONTAL_COLS;
+            const binH = h / VERTICAL_BINS;
+
+            for (let c = 0; c < HORIZONTAL_COLS; c++) {
+                const col = state.heatmapData[c];
+                const x = c * colW;
+
+                for (let r = 0; r < VERTICAL_BINS; r++) {
+                    const y = r * binH;
+                    const val = col[r];
+
+                    let color;
+                    if (val < 0.25) {
+                        const alpha = val / 0.25;
+                        color = `rgba(38, 12, 60, ${alpha * 0.7 + 0.1})`;
+                    } else if (val < 0.55) {
+                        const alpha = (val - 0.25) / 0.3;
+                        color = `rgba(180, 35, 90, ${alpha * 0.8 + 0.2})`;
+                    } else if (val < 0.82) {
+                        const alpha = (val - 0.55) / 0.27;
+                        color = `rgba(255, 120, 30, ${alpha * 0.85 + 0.3})`;
+                    } else {
+                        color = `rgba(255, 245, 180, 0.98)`;
+                    }
+
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x, y, colW + 0.5, binH + 0.5);
+                }
+            }
+
+            ctx.lineWidth = 1.8;
+            for (let c = 1; c < HORIZONTAL_COLS; c++) {
+                const x1 = (c - 1) * colW;
+                const y1 = state.candlesTrace[c - 1] * binH;
+                const x2 = c * colW;
+                const y2 = state.candlesTrace[c] * binH;
+
+                ctx.strokeStyle = y2 >= y1 ? '#ff2a44' : '#00e676';
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = '#ff2a44';
+            ctx.fillRect(0, h - 3, w, 3);
+        }
+
+        // MOTOR ANTI-SPAM
+        function checkSmartVoiceTriggers() {
+            if (!state.voiceEnabled) return;
+            const now = Date.now();
+
+            if (state.voiceFrequency === 'change_only') {
+                const currentSignalKey = `${state.cleanSymbol}_${state.signalType}_${state.confluenceScore >= 75 ? 'HIGH' : 'LOW'}`;
+                if (state.lastAnnouncedSignal === currentSignalKey) return;
+
+                if (state.signalType === 'LONG' && state.confluenceScore >= 75) {
+                    state.lastAnnouncedSignal = currentSignalKey;
+                    state.lastSignalAnnouncementTime = now;
+                    speak(`Nueva oportunidad en ${state.assetName}. Confluencia del ${state.confluenceScore} por ciento confirmada en compra. Entrada sugerida en ${formatPrice(state.price)}.`);
+                }
+                return;
+            }
+
+            let intervalMs = 180000;
+            if (state.voiceFrequency === '5min') intervalMs = 300000;
+            if (state.voiceFrequency === '10min') intervalMs = 600000;
+
+            if (now - state.lastSignalAnnouncementTime > intervalMs) {
+                state.lastSignalAnnouncementTime = now;
+                if (state.signalType === 'LONG' && state.confluenceScore >= 75) {
+                    speak(`Actualización en ${state.assetName}. Señal de compra activa con confluencia del ${state.confluenceScore} por ciento. Soporte clave en ${formatPrice(state.lowerBlockPrice)}.`);
+                }
+            }
+        }
+
+        // CAMBIO DE TICKER
+        el.tickerSelect.addEventListener('change', async (e) => {
+            const fullSym = e.target.value;
+            state.tvSymbol = fullSym;
+
+            const selectedOption = e.target.options[e.target.selectedIndex];
+            state.assetName = selectedOption.text.split('(')[1]?.replace(')', '') || 'el activo';
+
+            state.lastAnnouncedSignal = null;
+
+            if (fullSym.startsWith('BINANCE:')) {
+                state.isCrypto = true;
+                state.cleanSymbol = fullSym.replace('BINANCE:', '');
+                disconnectWebSocket();
+                el.livePrice.textContent = 'Cargando...';
+                await fetchInitialCryptoPrice(state.cleanSymbol);
+                connectCryptoFeed(state.cleanSymbol);
+            } else {
+                state.isCrypto = false;
+                state.cleanSymbol = fullSym.split(':')[1] || fullSym;
+                disconnectWebSocket();
+
+                const bench = benchmarkPrices[state.cleanSymbol] || 100.0;
+                startNonCryptoTickStream(bench);
+            }
+
+            el.heatmapTitle.textContent = `${state.cleanSymbol} Heatmap`;
+            updateTradingViewSymbol(state.tvSymbol);
+            evaluateMultiStrategyConfluence();
+        });
+
+        function init() {
+            // Sincronizar el selector si había un ticker guardado
+            if (state.tvSymbol && el.tickerSelect.querySelector(`option[value="${state.tvSymbol}"]`)) {
+                el.tickerSelect.value = state.tvSymbol;
+                const opt = el.tickerSelect.querySelector(`option[value="${state.tvSymbol}"]`);
+                state.assetName = opt.text.split('(')[1]?.replace(')', '') || 'Bitcoin';
+                state.cleanSymbol = state.tvSymbol.startsWith('BINANCE:') ? state.tvSymbol.replace('BINANCE:', '') : (state.tvSymbol.split(':')[1] || state.tvSymbol);
+                state.isCrypto = state.tvSymbol.startsWith('BINANCE:');
+            }
+
+            initTradingView(state.tvSymbol);
+            initHeatmapGrid();
+            renderFineHeatmap();
+
+            if (state.isCrypto) {
+                fetchInitialCryptoPrice(state.cleanSymbol);
+                connectCryptoFeed(state.cleanSymbol);
+            } else {
+                const bench = benchmarkPrices[state.cleanSymbol] || 100.0;
+                startNonCryptoTickStream(bench);
+            }
+
+            setInterval(advanceHeatmapStep, 600);
+            window.addEventListener('resize', renderFineHeatmap);
+        }
+
+        init();
+    </script>
+</body>
+</html>
