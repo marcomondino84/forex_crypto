@@ -686,13 +686,17 @@
             </div>
         </div>
 
-        <!-- COL 2: HEATMAP FINO DE ALTA DENSIDAD -->
+        <!-- COL 2: HEATMAP FINO DE ALTA DENSIDAD CON ZOOM Y PAN -->
         <div class="panel-box">
             <div class="panel-header">
                 <span id="heatmapTitle">Heatmap Live</span>
-                <span style="color:#ff2a44;">LIQUIDACIONES</span>
+                <div style="display:flex; align-items:center; gap:2px;">
+                    <button class="btn-tf-pill" id="btnHmZoomIn" title="Zoom In (Rueda del ratón arriba)">🔍 +</button>
+                    <button class="btn-tf-pill" id="btnHmZoomOut" title="Zoom Out (Rueda del ratón abajo)">🔍 -</button>
+                    <button class="btn-tf-pill" id="btnHmReset" title="Restablecer vista original">1x</button>
+                </div>
             </div>
-            <div class="heatmap-container-box">
+            <div class="heatmap-container-box" id="heatmapContainer" style="cursor: grab;">
                 <canvas id="heatmapCanvas"></canvas>
                 <div id="heatmapPriceScale" class="heatmap-price-scale">
                     <span id="hp78">--</span>
@@ -703,6 +707,7 @@
                     <span id="hp73">--</span>
                     <span id="hp72">--</span>
                 </div>
+                <div id="hmTooltip" style="display:none; position:absolute; left:6px; bottom:6px; background:rgba(6,10,16,0.92); border:1px solid #38bdf8; padding:3px 7px; border-radius:4px; font-family:var(--font-mono); font-size:9px; color:#fff; pointer-events:none; z-index:15; box-shadow:0 2px 8px rgba(0,0,0,0.8);"></div>
             </div>
         </div>
 
@@ -813,6 +818,12 @@
             candlesTrace: [],
             confluenceScore: 85,
             signalType: 'LONG',
+            // Zoom y Pan del Heatmap
+            hmZoom: 1.0,
+            hmOffsetY: 0,
+            hmIsDragging: false,
+            hmDragStartY: 0,
+            hmHoverY: null,
             // Voz
             voiceEnabled: true,
             selectedVoice: null,
@@ -841,6 +852,11 @@
             aiSummary: document.getElementById('aiSummary'),
             btnPlayAlertManual: document.getElementById('btnPlayAlertManual'),
             heatmapCanvas: document.getElementById('heatmapCanvas'),
+            heatmapContainer: document.getElementById('heatmapContainer'),
+            btnHmZoomIn: document.getElementById('btnHmZoomIn'),
+            btnHmZoomOut: document.getElementById('btnHmZoomOut'),
+            btnHmReset: document.getElementById('btnHmReset'),
+            hmTooltip: document.getElementById('hmTooltip'),
             chartSymbolTitle: document.getElementById('chartSymbolTitle'),
             heatmapTitle: document.getElementById('heatmapTitle'),
             voiceToggleBtn: document.getElementById('voiceToggleBtn'),
@@ -1112,13 +1128,16 @@
             state.upperBlockPrice = base * 1.025;
             state.lowerBlockPrice = base * 0.982;
 
-            el.hp78.textContent = formatPrice(base * 1.05);
-            el.hp77.textContent = formatPrice(base * 1.03);
-            el.hp76.textContent = formatPrice(base * 1.02);
-            el.hp75.textContent = formatPrice(base * 1.01);
-            el.hp74.textContent = `${formatPrice(base)} (Act)`;
-            el.hp73.textContent = formatPrice(base * 0.99);
-            el.hp72.textContent = formatPrice(base * 0.97);
+            // Escalas del Heatmap adaptadas al Zoom y Pan
+            const span = (0.05 / state.hmZoom);
+            const centerShift = (-state.hmOffsetY / 300) * span;
+            el.hp78.textContent = formatPrice(base * (1 + span * 1.0 + centerShift));
+            el.hp77.textContent = formatPrice(base * (1 + span * 0.6 + centerShift));
+            el.hp76.textContent = formatPrice(base * (1 + span * 0.3 + centerShift));
+            el.hp75.textContent = formatPrice(base * (1 + span * 0.1 + centerShift));
+            el.hp74.textContent = `${formatPrice(base * (1 + centerShift))} (Act)`;
+            el.hp73.textContent = formatPrice(base * (1 - span * 0.3 + centerShift));
+            el.hp72.textContent = formatPrice(base * (1 - span * 0.8 + centerShift));
 
             const rsiVal = state.currentRsi || 29;
             const rsiBull = rsiVal <= 32;
@@ -1247,14 +1266,21 @@
             if (!state.heatmapData.length) return;
 
             const colW = w / HORIZONTAL_COLS;
-            const binH = h / VERTICAL_BINS;
+            const binH = (h / VERTICAL_BINS) * state.hmZoom;
+            const offsetY = state.hmOffsetY;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, 0, w, h);
+            ctx.clip();
 
             for (let c = 0; c < HORIZONTAL_COLS; c++) {
                 const col = state.heatmapData[c];
                 const x = c * colW;
 
                 for (let r = 0; r < VERTICAL_BINS; r++) {
-                    const y = r * binH;
+                    const y = r * binH + offsetY;
+                    if (y < -binH || y > h) continue;
                     const val = col[r];
 
                     let color;
@@ -1276,12 +1302,13 @@
                 }
             }
 
-            ctx.lineWidth = 1.8;
+            // Trazo micro-velas
+            ctx.lineWidth = 1.8 * Math.min(state.hmZoom, 2);
             for (let c = 1; c < HORIZONTAL_COLS; c++) {
                 const x1 = (c - 1) * colW;
-                const y1 = state.candlesTrace[c - 1] * binH;
+                const y1 = state.candlesTrace[c - 1] * binH + offsetY;
                 const x2 = c * colW;
-                const y2 = state.candlesTrace[c] * binH;
+                const y2 = state.candlesTrace[c] * binH + offsetY;
 
                 ctx.strokeStyle = y2 >= y1 ? '#ff2a44' : '#00e676';
                 ctx.beginPath();
@@ -1290,8 +1317,95 @@
                 ctx.stroke();
             }
 
+            // Crosshair horizontal interactivo al pasar el cursor
+            if (state.hmHoverY !== null) {
+                ctx.strokeStyle = '#38bdf8';
+                ctx.setLineDash([3, 3]);
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(0, state.hmHoverY);
+                ctx.lineTo(w, state.hmHoverY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            ctx.restore();
+
             ctx.fillStyle = '#ff2a44';
             ctx.fillRect(0, h - 3, w, 3);
+        }
+
+        // CONTROLADORES DE ZOOM, PAN Y CROSSHAIR EN EL HEATMAP
+        function setupHeatmapControls() {
+            el.btnHmZoomIn.addEventListener('click', () => {
+                state.hmZoom = Math.min(state.hmZoom + 0.25, 3.5);
+                evaluateMultiStrategyConfluence();
+                renderFineHeatmap();
+            });
+
+            el.btnHmZoomOut.addEventListener('click', () => {
+                state.hmZoom = Math.max(state.hmZoom - 0.25, 0.6);
+                evaluateMultiStrategyConfluence();
+                renderFineHeatmap();
+            });
+
+            el.btnHmReset.addEventListener('click', () => {
+                state.hmZoom = 1.0;
+                state.hmOffsetY = 0;
+                evaluateMultiStrategyConfluence();
+                renderFineHeatmap();
+            });
+
+            el.heatmapContainer.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const delta = e.deltaY < 0 ? 0.15 : -0.15;
+                state.hmZoom = Math.min(Math.max(state.hmZoom + delta, 0.6), 3.5);
+                evaluateMultiStrategyConfluence();
+                renderFineHeatmap();
+            }, { passive: false });
+
+            el.heatmapContainer.addEventListener('mousedown', (e) => {
+                state.hmIsDragging = true;
+                state.hmDragStartY = e.clientY - state.hmOffsetY;
+                el.heatmapContainer.style.cursor = 'grabbing';
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (state.hmIsDragging) {
+                    state.hmOffsetY = e.clientY - state.hmDragStartY;
+                    evaluateMultiStrategyConfluence();
+                    renderFineHeatmap();
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (state.hmIsDragging) {
+                    state.hmIsDragging = false;
+                    el.heatmapContainer.style.cursor = 'grab';
+                }
+            });
+
+            el.heatmapContainer.addEventListener('mousemove', (e) => {
+                const rect = el.heatmapCanvas.getBoundingClientRect();
+                const y = e.clientY - rect.top;
+                state.hmHoverY = y;
+
+                const base = state.price || 100.0;
+                const norm = 1 - (y / rect.height);
+                const span = (0.05 / state.hmZoom);
+                const centerShift = (-state.hmOffsetY / 300) * span;
+                const priceAtY = base * (1 + (norm - 0.5) * span * 2 + centerShift);
+
+                el.hmTooltip.style.display = 'block';
+                el.hmTooltip.textContent = `Nivel: $${formatPrice(priceAtY)} (Pool Liq)`;
+                renderFineHeatmap();
+            });
+
+            el.heatmapContainer.addEventListener('mouseleave', () => {
+                state.hmHoverY = null;
+                el.hmTooltip.style.display = 'none';
+                renderFineHeatmap();
+            });
         }
 
         // MOTOR ANTI-SPAM
@@ -1366,6 +1480,7 @@
 
             initTradingView(state.tvSymbol);
             setupTimeframePills();
+            setupHeatmapControls();
             initHeatmapGrid();
             renderFineHeatmap();
 

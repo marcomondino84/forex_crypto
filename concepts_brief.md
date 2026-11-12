@@ -13,9 +13,9 @@ Terminal web de análisis técnico institucional y scalping de alta frecuencia, 
 1. **Rendimiento Gráfico y Zero Garbage Collection (Codebase Details & Structural):**
    - El flujo continuo de ticks y deltas de profundidad a 100 ms puede saturar el recolector de basura del navegador y congelar el DOM.
    - **Solución implementada:** Uso de `TypedArrays` (`Float64Array`) y buffers circulares preasignados de tamaño fijo (300 a 500 columnas de tiempo) para evitar instanciación constante de objetos. El renderizado en Canvas se acopla estrictamente a `requestAnimationFrame()`.
-2. **Normalización Visual del Heatmap (UX Design):**
+2. **Normalización Visual y Navegabilidad del Heatmap (UX Design):**
    - Las órdenes masivas de ballenas pueden eclipsar órdenes intermedias si se usa una escala lineal.
-   - **Solución implementada:** Mapeo de volumen con escala logarítmica y paleta cromática perceptiva (*Inferno/Magma* o *Viridis*), asegurando que tanto los muros mayores como la densidad de liquidez menor sean legibles al instante.
+   - **Solución implementada:** Mapeo de volumen con escala logarítmica y paleta cromática perceptiva (*The Kingfisher style*). Además, se incorporó navegación interactiva con **Zoom (0.6x a 3.5x)** mediante rueda del ratón o botones, **Pan (arrastre vertical)** para explorar niveles fuera de vista, y **Crosshair con Tooltip dinámico** para inspeccionar el precio y densidad de cada franja en tiempo real.
 3. **Cold Start y Continuidad de Datos (Implementation Readiness):**
    - Dado que los WebSockets solo transmiten deltas, la apertura inicial de la página requiere un snapshot previo.
    - **Solución implementada:** Un `fetch` inicial a los endpoints REST públicos (`/api/v3/klines` y `/api/v3/depth`) para hidratar las primeras 100 velas y el libro de órdenes, conectando de inmediato el WebSocket para actualización continua sin saltos.
