@@ -873,7 +873,11 @@
             hp75: document.getElementById('hp75'),
             hp74: document.getElementById('hp74'),
             hp73: document.getElementById('hp73'),
-            hp72: document.getElementById('hp72')
+            hp72: document.getElementById('hp72'),
+            rsi5m: document.getElementById('rsi5m'),
+            rsi15m: document.getElementById('rsi15m'),
+            rsi1h: document.getElementById('rsi1h'),
+            rsi1d: document.getElementById('rsi1d')
         };
 
         let tvWidget = null;
@@ -1058,6 +1062,93 @@
                 }
             } catch (err) {
                 console.warn("Error obteniendo precio REST:", err);
+            }
+        }
+
+        // CÁLCULO MATEMÁTICO EXACTO DE RSI SEGÚN J. WELLES WILDER (IDÉNTICO A TRADINGVIEW)
+        function calculateWilderRsi(closePrices, period = 14) {
+            if (!closePrices || closePrices.length < period + 1) return 50;
+
+            let gains = 0;
+            let losses = 0;
+
+            for (let i = 1; i <= period; i++) {
+                const change = closePrices[i] - closePrices[i - 1];
+                if (change >= 0) gains += change;
+                else losses += Math.abs(change);
+            }
+
+            let avgGain = gains / period;
+            let avgLoss = losses / period;
+
+            for (let i = period + 1; i < closePrices.length; i++) {
+                const change = closePrices[i] - closePrices[i - 1];
+                const gain = change >= 0 ? change : 0;
+                const loss = change < 0 ? Math.abs(change) : 0;
+
+                avgGain = (avgGain * (period - 1) + gain) / period;
+                avgLoss = (avgLoss * (period - 1) + loss) / period;
+            }
+
+            if (avgLoss === 0) return 100;
+            const rs = avgGain / avgLoss;
+            return Math.round(100 - (100 / (1 + rs)));
+        }
+
+        function updateRsiCell(element, val) {
+            if (!element) return;
+            element.textContent = val;
+            if (val <= 32) {
+                element.className = 'rsi-cell-val oversold';
+            } else if (val >= 68) {
+                element.className = 'rsi-cell-val overbought';
+            } else {
+                element.className = 'rsi-cell-val neutral';
+            }
+        }
+
+        // CONSULTA DE VELAS REALES Y CÁLCULO DE LA MATRIZ MULTITEMPORAL DE RSI
+        async function fetchRealRsiMatrix(symbol) {
+            try {
+                const sym = state.isCrypto ? symbol : 'EURUSDT';
+                const [k5m, k15m, k1h, k1d] = await Promise.all([
+                    fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=5m&limit=35`).then(r => r.json()),
+                    fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=15m&limit=35`).then(r => r.json()),
+                    fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1h&limit=35`).then(r => r.json()),
+                    fetch(`https://api.binance.com/api/v3/klines?symbol=${sym}&interval=1d&limit=35`).then(r => r.json())
+                ]);
+
+                if (Array.isArray(k5m) && k5m.length > 14) {
+                    const closes5m = k5m.map(k => parseFloat(k[4]));
+                    state.currentRsi = calculateWilderRsi(closes5m, 14);
+                    updateRsiCell(el.rsi5m, state.currentRsi);
+                }
+
+                if (Array.isArray(k15m) && k15m.length > 14) {
+                    const closes15m = k15m.map(k => parseFloat(k[4]));
+                    const rsi15 = calculateWilderRsi(closes15m, 14);
+                    updateRsiCell(el.rsi15m, rsi15);
+                }
+
+                if (Array.isArray(k1h) && k1h.length > 14) {
+                    const closes1h = k1h.map(k => parseFloat(k[4]));
+                    const rsi1h = calculateWilderRsi(closes1h, 14);
+                    updateRsiCell(el.rsi1h, rsi1h);
+                }
+
+                if (Array.isArray(k1d) && k1d.length > 14) {
+                    const closes1d = k1d.map(k => parseFloat(k[4]));
+                    const rsi1d = calculateWilderRsi(closes1d, 14);
+                    updateRsiCell(el.rsi1d, rsi1d);
+                }
+
+                if (el.gaugeNeedle && state.currentRsi) {
+                    el.gaugeNeedle.style.left = `${Math.min(Math.max(state.currentRsi, 5), 95)}%`;
+                }
+
+                evaluateMultiStrategyConfluence();
+            } catch (err) {
+                console.warn("Error calculando RSI real multitemporal:", err);
             }
         }
 
@@ -1465,6 +1556,7 @@
 
             el.heatmapTitle.textContent = `${state.cleanSymbol} Heatmap`;
             updateTradingViewSymbol(state.tvSymbol);
+            fetchRealRsiMatrix(state.cleanSymbol);
             evaluateMultiStrategyConfluence();
         });
 
@@ -1491,6 +1583,9 @@
                 const bench = benchmarkPrices[state.cleanSymbol] || 100.0;
                 startNonCryptoTickStream(bench);
             }
+
+            fetchRealRsiMatrix(state.cleanSymbol);
+            setInterval(() => fetchRealRsiMatrix(state.cleanSymbol), 12000);
 
             setInterval(advanceHeatmapStep, 600);
             window.addEventListener('resize', renderFineHeatmap);
