@@ -379,6 +379,25 @@
         }
 
         /* COL 3: TRADINGVIEW */
+        .btn-tf-pill {
+            background: #141b24;
+            border: 1px solid #212836;
+            color: #94a3b8;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .btn-tf-pill:hover, .btn-tf-pill.active {
+            background: #00b0ff;
+            color: #000;
+            border-color: #00b0ff;
+            font-weight: 800;
+        }
+
         .chart-box {
             flex: 1;
             position: relative;
@@ -691,7 +710,15 @@
         <div class="panel-box chart-box">
             <div class="panel-header">
                 <span id="chartSymbolTitle">GRÁFICO PROFESIONAL EN TIEMPO REAL</span>
-                <span style="color:#38bdf8;">TRADINGVIEW ADVANCED FEED</span>
+                <div style="display:flex; align-items:center; gap:3px;">
+                    <span style="font-size:9px; color:var(--text-muted); margin-right:2px;">TF:</span>
+                    <button class="btn-tf-pill" data-interval="1">1m</button>
+                    <button class="btn-tf-pill active" data-interval="5">5m</button>
+                    <button class="btn-tf-pill" data-interval="15">15m</button>
+                    <button class="btn-tf-pill" data-interval="60">1h</button>
+                    <button class="btn-tf-pill" data-interval="240">4h</button>
+                    <button class="btn-tf-pill" data-interval="D">1D</button>
+                </div>
             </div>
             <div id="tradingview_widget"></div>
         </div>
@@ -951,15 +978,22 @@
         });
 
         // GESTIÓN DEL GRÁFICO TRADINGVIEW CON PERSISTENCIA DE TEMPORALIDAD Y CONFIGURACIÓN
-        function initTradingView(symbol) {
-            // Guardar último ticker utilizado en localStorage
+        function initTradingView(symbol, interval = null) {
+            const userInterval = interval || state.interval || localStorage.getItem('tv_user_interval') || "5";
+            state.interval = userInterval;
             localStorage.setItem('tv_last_symbol', symbol);
+            localStorage.setItem('tv_user_interval', userInterval);
+
+            // Sincronizar pills visuales de temporalidad
+            document.querySelectorAll('.btn-tf-pill').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.interval === userInterval);
+            });
 
             document.getElementById('tradingview_widget').innerHTML = '';
             tvWidget = new TradingView.widget({
                 "autosize": true,
                 "symbol": symbol,
-                "interval": localStorage.getItem('tv_user_interval') || "5",
+                "interval": userInterval,
                 "timezone": "Etc/UTC",
                 "theme": "dark",
                 "style": "1",
@@ -967,7 +1001,7 @@
                 "toolbar_bg": "#0d1117",
                 "enable_publishing": false,
                 "hide_top_toolbar": false,
-                "allow_symbol_change": true, // Permite al usuario cambiar símbolo adentro de TradingView sin borrar nada
+                "allow_symbol_change": true, // Permite buscar también directo en TradingView
                 "save_image": false,
                 "withdateranges": true,
                 "container_id": "tradingview_widget",
@@ -977,28 +1011,21 @@
                     "MASimple@tv-basicstudies"
                 ]
             });
-            el.chartSymbolTitle.textContent = `${symbol} - EN VIVO`;
+            el.chartSymbolTitle.textContent = `${symbol} [${userInterval}${userInterval === 'D' ? '' : 'm'}]`;
         }
 
-        // CAMBIO DE TICKER EN TRADINGVIEW PRESERVANDO TODO
+        // CAMBIO INSTANTÁNEO DE TICKER EN TRADINGVIEW DESDE EL SELECTOR
         function updateTradingViewSymbol(symbol) {
-            localStorage.setItem('tv_last_symbol', symbol);
+            initTradingView(symbol, state.interval);
+        }
 
-            // Intentar enviar mensaje a través del iframe para no reconstruir el widget
-            const iframe = document.querySelector('#tradingview_widget iframe');
-            if (iframe && iframe.contentWindow) {
-                try {
-                    iframe.contentWindow.postMessage(JSON.stringify({
-                        name: 'set-symbol',
-                        data: { symbol: symbol }
-                    }), '*');
-                    el.chartSymbolTitle.textContent = `${symbol} - EN VIVO`;
-                    return;
-                } catch(e) {}
-            }
-
-            // Si es necesario reinicializar, lo hace usando el intervalo guardado por el usuario
-            initTradingView(symbol);
+        function setupTimeframePills() {
+            document.querySelectorAll('.btn-tf-pill').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const chosenInterval = e.target.dataset.interval;
+                    initTradingView(state.tvSymbol, chosenInterval);
+                });
+            });
         }
 
         async function fetchInitialCryptoPrice(symbol) {
@@ -1338,6 +1365,7 @@
             }
 
             initTradingView(state.tvSymbol);
+            setupTimeframePills();
             initHeatmapGrid();
             renderFineHeatmap();
 
