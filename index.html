@@ -1377,7 +1377,13 @@
             if (!state.heatmapData.length || w <= 0 || h <= 0) return;
 
             const { maxP, minP, binH } = getHeatmapBounds(h);
-            const colW = w / HORIZONTAL_COLS;
+            const liveP = state.price || state.candlesTrace[state.candlesTrace.length - 1];
+            ctx.font = '700 9.5px "JetBrains Mono", monospace';
+            const sampleLabel = liveP > 0 ? formatPrice(liveP) : '00,000.00';
+            const axisW = Math.min(Math.max(ctx.measureText(sampleLabel).width + 12, 54), Math.floor(w * 0.42));
+            const plotW = Math.max(40, w - axisW);
+            const colW = plotW / HORIZONTAL_COLS;
+            const fullColW = w / HORIZONTAL_COLS;
 
             ctx.save();
             ctx.beginPath();
@@ -1386,7 +1392,7 @@
 
             for (let c = 0; c < HORIZONTAL_COLS; c++) {
                 const col = state.heatmapData[c];
-                const x = c * colW;
+                const x = c * fullColW;
 
                 for (let r = 0; r < VERTICAL_BINS; r++) {
                     const y = rowToY(r, h, binH);
@@ -1408,9 +1414,19 @@
                     }
 
                     ctx.fillStyle = color;
-                    ctx.fillRect(x, y, colW + 0.5, binH + 0.5);
+                    ctx.fillRect(x, y, fullColW + 0.5, binH + 0.5);
                 }
             }
+
+            // Franja sutil para el eje de precios derecho (no tapa el gráfico lineal)
+            ctx.fillStyle = 'rgba(6, 9, 14, 0.58)';
+            ctx.fillRect(plotW, 0, axisW, h);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(plotW, 0);
+            ctx.lineTo(plotW, h);
+            ctx.stroke();
 
             // Escala dinámica de precios adaptada a zoom y desplazamiento
             const visibleTopPrice = yToPrice(0, h);
@@ -1432,7 +1448,7 @@
                 const startPrice = Math.floor(Math.min(visibleTopPrice, visibleBottomPrice) / step) * step;
                 const endPrice = Math.max(visibleTopPrice, visibleBottomPrice);
 
-                ctx.font = '600 10px "JetBrains Mono", monospace';
+                ctx.font = '600 9.5px "JetBrains Mono", monospace';
                 ctx.textBaseline = 'middle';
                 ctx.textAlign = 'right';
 
@@ -1444,19 +1460,15 @@
                     ctx.lineWidth = 1;
                     ctx.beginPath();
                     ctx.moveTo(0, y);
-                    ctx.lineTo(w, y);
+                    ctx.lineTo(plotW, y);
                     ctx.stroke();
 
-                    const label = formatPrice(p);
-                    const tw = ctx.measureText(label).width;
-                    ctx.fillStyle = 'rgba(11, 15, 23, 0.78)';
-                    ctx.fillRect(w - tw - 12, y - 8, tw + 8, 16);
-                    ctx.fillStyle = 'rgba(241, 245, 249, 0.92)';
-                    ctx.fillText(label, w - 8, y);
+                    ctx.fillStyle = 'rgba(226, 232, 240, 0.88)';
+                    ctx.fillText(formatPrice(p), w - 5, y);
                 }
             }
 
-            // Trazo lineal del precio real
+            // Trazo lineal del precio real (termina justo en el borde del eje de precios)
             ctx.lineWidth = 1.8 * Math.min(state.hmZoom, 2);
             for (let c = 1; c < HORIZONTAL_COLS; c++) {
                 const x1 = (c - 1) * colW;
@@ -1472,7 +1484,6 @@
             }
 
             // Línea y etiqueta del precio real siguiendo el final del trazo lineal
-            const liveP = state.price || state.candlesTrace[state.candlesTrace.length - 1];
             if (liveP > 0) {
                 const liveY = rowToY(priceToRow(liveP, maxP, minP), h, binH);
                 const liveColor = state.priceChange >= 0 ? '#00e676' : '#ff2a44';
@@ -1484,7 +1495,7 @@
                     ctx.lineWidth = 1.2;
                     ctx.beginPath();
                     ctx.moveTo(0, liveY);
-                    ctx.lineTo(w, liveY);
+                    ctx.lineTo(plotW, liveY);
                     ctx.stroke();
                     ctx.setLineDash([]);
 
@@ -1494,17 +1505,16 @@
                     ctx.arc(endX, liveY, 3.5, 0, Math.PI * 2);
                     ctx.fill();
 
-                    // Badge del precio real
-                    const liveLabel = `${formatPrice(liveP)} (Act)`;
-                    ctx.font = '700 10px "JetBrains Mono", monospace';
+                    // Badge compacto del precio real en la columna de precios (sin tapar el gráfico)
+                    const liveLabel = formatPrice(liveP);
+                    ctx.font = '700 9.5px "JetBrains Mono", monospace';
                     ctx.textBaseline = 'middle';
                     ctx.textAlign = 'right';
-                    const tw = ctx.measureText(liveLabel).width;
-                    const badgeY = Math.max(11, Math.min(h - 14, liveY));
+                    const badgeY = Math.max(10, Math.min(h - 13, liveY));
                     ctx.fillStyle = liveColor;
-                    ctx.fillRect(w - tw - 14, badgeY - 9, tw + 10, 18);
+                    ctx.fillRect(plotW + 2, badgeY - 8, axisW - 4, 16);
                     ctx.fillStyle = '#06090e';
-                    ctx.fillText(liveLabel, w - 9, badgeY);
+                    ctx.fillText(liveLabel, w - 5, badgeY);
                 }
             }
 
