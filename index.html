@@ -698,15 +698,6 @@
             </div>
             <div class="heatmap-container-box" id="heatmapContainer" style="cursor: grab;">
                 <canvas id="heatmapCanvas"></canvas>
-                <div id="heatmapPriceScale" class="heatmap-price-scale">
-                    <span id="hp78">--</span>
-                    <span id="hp77">--</span>
-                    <span id="hp76">--</span>
-                    <span id="hp75">--</span>
-                    <span id="hp74">--</span>
-                    <span id="hp73">--</span>
-                    <span id="hp72">--</span>
-                </div>
                 <div id="hmTooltip" style="display:none; position:absolute; left:6px; bottom:6px; background:rgba(6,10,16,0.92); border:1px solid #38bdf8; padding:3px 7px; border-radius:4px; font-family:var(--font-mono); font-size:9px; color:#fff; pointer-events:none; z-index:15; box-shadow:0 2px 8px rgba(0,0,0,0.8);"></div>
             </div>
         </div>
@@ -819,6 +810,7 @@
             confluenceScore: 85,
             signalType: 'LONG',
             // Zoom y Pan del Heatmap
+            hmAnchorPrice: 73000,
             hmZoom: 1.0,
             hmOffsetY: 0,
             hmIsDragging: false,
@@ -867,13 +859,6 @@
             testVoiceBtn: document.getElementById('testVoiceBtn'),
             bottomAlertBanner: document.getElementById('bottomAlertBanner'),
             alertStatusText: document.getElementById('alertStatusText'),
-            hp78: document.getElementById('hp78'),
-            hp77: document.getElementById('hp77'),
-            hp76: document.getElementById('hp76'),
-            hp75: document.getElementById('hp75'),
-            hp74: document.getElementById('hp74'),
-            hp73: document.getElementById('hp73'),
-            hp72: document.getElementById('hp72'),
             rsi5m: document.getElementById('rsi5m'),
             rsi15m: document.getElementById('rsi15m'),
             rsi1h: document.getElementById('rsi1h'),
@@ -1058,6 +1043,12 @@
                     el.livePrice.textContent = formatPrice(state.price);
                     el.priceChange.textContent = `${state.priceChange >= 0 ? '+' : ''}${state.priceChange.toFixed(2)}%`;
                     el.priceChange.className = `price-change ${state.priceChange >= 0 ? 'up' : 'down'}`;
+                    if (!state.hmAnchorPrice || Math.abs(state.hmAnchorPrice - state.price) / state.price > 0.035) {
+                        initHeatmapGrid();
+                    } else if (state.candlesTrace.length) {
+                        state.candlesTrace[state.candlesTrace.length - 1] = state.price;
+                    }
+                    renderFineHeatmap();
                     evaluateMultiStrategyConfluence();
                 }
             } catch (err) {
@@ -1178,6 +1169,12 @@
                     el.livePrice.textContent = formatPrice(state.price);
                     el.priceChange.textContent = `${state.priceChange >= 0 ? '+' : ''}${state.priceChange.toFixed(2)}%`;
                     el.priceChange.className = `price-change ${state.priceChange >= 0 ? 'up' : 'down'}`;
+                    if (!state.hmAnchorPrice || Math.abs(state.hmAnchorPrice - state.price) / state.price > 0.035) {
+                        initHeatmapGrid();
+                    } else if (state.candlesTrace.length) {
+                        state.candlesTrace[state.candlesTrace.length - 1] = state.price;
+                    }
+                    renderFineHeatmap();
                     evaluateMultiStrategyConfluence();
                 } else if (d.e === 'trade') {
                     el.volumeTraded.textContent = parseFloat(d.q).toFixed(2);
@@ -1200,6 +1197,8 @@
             el.priceChange.textContent = '-0.15%';
             el.priceChange.className = 'price-change down';
             el.volumeTraded.textContent = '1.24k';
+            initHeatmapGrid();
+            renderFineHeatmap();
             evaluateMultiStrategyConfluence();
 
             nonCryptoInterval = setInterval(() => {
@@ -1210,6 +1209,10 @@
                 const tickDelta = (Math.random() - 0.49) * (state.price * 0.0003);
                 state.price = Math.max(state.price * 0.95, state.price + tickDelta);
                 el.livePrice.textContent = formatPrice(state.price);
+                if (state.candlesTrace.length) {
+                    state.candlesTrace[state.candlesTrace.length - 1] = state.price;
+                    renderFineHeatmap();
+                }
                 evaluateMultiStrategyConfluence();
             }, 1200);
         }
@@ -1218,17 +1221,6 @@
             const base = state.price || 100.0;
             state.upperBlockPrice = base * 1.025;
             state.lowerBlockPrice = base * 0.982;
-
-            // Escalas del Heatmap adaptadas al Zoom y Pan
-            const span = (0.05 / state.hmZoom);
-            const centerShift = (-state.hmOffsetY / 300) * span;
-            el.hp78.textContent = formatPrice(base * (1 + span * 1.0 + centerShift));
-            el.hp77.textContent = formatPrice(base * (1 + span * 0.6 + centerShift));
-            el.hp76.textContent = formatPrice(base * (1 + span * 0.3 + centerShift));
-            el.hp75.textContent = formatPrice(base * (1 + span * 0.1 + centerShift));
-            el.hp74.textContent = `${formatPrice(base * (1 + centerShift))} (Act)`;
-            el.hp73.textContent = formatPrice(base * (1 - span * 0.3 + centerShift));
-            el.hp72.textContent = formatPrice(base * (1 - span * 0.8 + centerShift));
 
             const rsiVal = state.currentRsi || 29;
             const rsiBull = rsiVal <= 32;
@@ -1298,7 +1290,32 @@
         const VERTICAL_BINS = 120;
         const HORIZONTAL_COLS = 80;
 
+        function getHeatmapBounds(h) {
+            const anchor = state.hmAnchorPrice || state.price || 73000;
+            const maxP = anchor * 1.04;
+            const minP = anchor * 0.96;
+            const binH = (h / VERTICAL_BINS) * state.hmZoom;
+            return { anchor, maxP, minP, binH };
+        }
+
+        function priceToRow(price, maxP, minP) {
+            return ((maxP - price) / (maxP - minP)) * VERTICAL_BINS;
+        }
+
+        function rowToY(row, h, binH) {
+            return (h / 2) + (row - VERTICAL_BINS / 2) * binH + state.hmOffsetY;
+        }
+
+        function yToPrice(y, h) {
+            const { maxP, minP, binH } = getHeatmapBounds(h);
+            const row = ((y - state.hmOffsetY - h / 2) / binH) + VERTICAL_BINS / 2;
+            return maxP - (row / VERTICAL_BINS) * (maxP - minP);
+        }
+
         function initHeatmapGrid() {
+            const base = state.price || state.hmAnchorPrice || 73000;
+            state.hmAnchorPrice = base;
+
             state.heatmapData = [];
             for (let c = 0; c < HORIZONTAL_COLS; c++) {
                 const col = new Float32Array(VERTICAL_BINS);
@@ -1311,16 +1328,17 @@
                 state.heatmapData.push(col);
             }
 
-            state.candlesTrace = [];
-            let pVal = 75;
-            for (let c = 0; c < HORIZONTAL_COLS; c++) {
-                pVal += (Math.random() - 0.53) * 2.5;
-                pVal = Math.max(68, Math.min(88, pVal));
-                state.candlesTrace.push(pVal);
+            state.candlesTrace = new Array(HORIZONTAL_COLS);
+            let pVal = base;
+            for (let c = HORIZONTAL_COLS - 1; c >= 0; c--) {
+                state.candlesTrace[c] = pVal;
+                pVal = pVal * (1 + (Math.random() - 0.5) * 0.0022);
+                pVal = Math.max(base * 0.965, Math.min(base * 1.035, pVal));
             }
         }
 
         function advanceHeatmapStep() {
+            if (!state.heatmapData.length) return;
             const newCol = new Float32Array(VERTICAL_BINS);
             const prevCol = state.heatmapData[state.heatmapData.length - 1];
 
@@ -1332,11 +1350,13 @@
             state.heatmapData.shift();
             state.heatmapData.push(newCol);
 
-            const lastP = state.candlesTrace[state.candlesTrace.length - 1];
-            let nextP = lastP + (Math.random() - 0.52) * 1.8;
-            nextP = Math.max(68, Math.min(90, nextP));
-            state.candlesTrace.shift();
-            state.candlesTrace.push(nextP);
+            const liveP = state.price || state.candlesTrace[state.candlesTrace.length - 1];
+            if (liveP > 0 && state.hmAnchorPrice > 0 && Math.abs(state.hmAnchorPrice - liveP) / liveP > 0.035) {
+                initHeatmapGrid();
+            } else {
+                state.candlesTrace.shift();
+                state.candlesTrace.push(liveP);
+            }
 
             renderFineHeatmap();
             checkSmartVoiceTriggers();
@@ -1354,11 +1374,10 @@
 
             ctx.fillStyle = '#020305';
             ctx.fillRect(0, 0, w, h);
-            if (!state.heatmapData.length) return;
+            if (!state.heatmapData.length || w <= 0 || h <= 0) return;
 
+            const { maxP, minP, binH } = getHeatmapBounds(h);
             const colW = w / HORIZONTAL_COLS;
-            const binH = (h / VERTICAL_BINS) * state.hmZoom;
-            const offsetY = state.hmOffsetY;
 
             ctx.save();
             ctx.beginPath();
@@ -1370,7 +1389,7 @@
                 const x = c * colW;
 
                 for (let r = 0; r < VERTICAL_BINS; r++) {
-                    const y = r * binH + offsetY;
+                    const y = rowToY(r, h, binH);
                     if (y < -binH || y > h) continue;
                     const val = col[r];
 
@@ -1393,19 +1412,100 @@
                 }
             }
 
-            // Trazo micro-velas
+            // Escala dinámica de precios adaptada a zoom y desplazamiento
+            const visibleTopPrice = yToPrice(0, h);
+            const visibleBottomPrice = yToPrice(h, h);
+            const visibleSpan = Math.abs(visibleTopPrice - visibleBottomPrice);
+            if (visibleSpan > 0 && isFinite(visibleSpan)) {
+                const minLabelSpacingPx = 36;
+                const maxTicks = Math.max(4, Math.floor(h / minLabelSpacingPx));
+                const rawStep = visibleSpan / maxTicks;
+                const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+                const normStep = rawStep / mag;
+                let niceMult = 1;
+                if (normStep > 5) niceMult = 10;
+                else if (normStep > 2.5) niceMult = 5;
+                else if (normStep > 1.5) niceMult = 2.5;
+                else if (normStep > 1) niceMult = 2;
+                const step = niceMult * mag;
+
+                const startPrice = Math.floor(Math.min(visibleTopPrice, visibleBottomPrice) / step) * step;
+                const endPrice = Math.max(visibleTopPrice, visibleBottomPrice);
+
+                ctx.font = '600 10px "JetBrains Mono", monospace';
+                ctx.textBaseline = 'middle';
+                ctx.textAlign = 'right';
+
+                for (let p = startPrice; p <= endPrice; p += step) {
+                    const y = rowToY(priceToRow(p, maxP, minP), h, binH);
+                    if (y < 14 || y > h - 14) continue;
+
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(w, y);
+                    ctx.stroke();
+
+                    const label = formatPrice(p);
+                    const tw = ctx.measureText(label).width;
+                    ctx.fillStyle = 'rgba(11, 15, 23, 0.78)';
+                    ctx.fillRect(w - tw - 12, y - 8, tw + 8, 16);
+                    ctx.fillStyle = 'rgba(241, 245, 249, 0.92)';
+                    ctx.fillText(label, w - 8, y);
+                }
+            }
+
+            // Trazo lineal del precio real
             ctx.lineWidth = 1.8 * Math.min(state.hmZoom, 2);
             for (let c = 1; c < HORIZONTAL_COLS; c++) {
                 const x1 = (c - 1) * colW;
-                const y1 = state.candlesTrace[c - 1] * binH + offsetY;
+                const y1 = rowToY(priceToRow(state.candlesTrace[c - 1], maxP, minP), h, binH);
                 const x2 = c * colW;
-                const y2 = state.candlesTrace[c] * binH + offsetY;
+                const y2 = rowToY(priceToRow(state.candlesTrace[c], maxP, minP), h, binH);
 
                 ctx.strokeStyle = y2 >= y1 ? '#ff2a44' : '#00e676';
                 ctx.beginPath();
                 ctx.moveTo(x1, y1);
                 ctx.lineTo(x2, y2);
                 ctx.stroke();
+            }
+
+            // Línea y etiqueta del precio real siguiendo el final del trazo lineal
+            const liveP = state.price || state.candlesTrace[state.candlesTrace.length - 1];
+            if (liveP > 0) {
+                const liveY = rowToY(priceToRow(liveP, maxP, minP), h, binH);
+                const liveColor = state.priceChange >= 0 ? '#00e676' : '#ff2a44';
+                const endX = (HORIZONTAL_COLS - 1) * colW;
+
+                if (liveY >= -10 && liveY <= h + 10) {
+                    ctx.strokeStyle = liveColor;
+                    ctx.setLineDash([4, 3]);
+                    ctx.lineWidth = 1.2;
+                    ctx.beginPath();
+                    ctx.moveTo(0, liveY);
+                    ctx.lineTo(w, liveY);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    // Punto en la punta del gráfico lineal
+                    ctx.fillStyle = liveColor;
+                    ctx.beginPath();
+                    ctx.arc(endX, liveY, 3.5, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Badge del precio real
+                    const liveLabel = `${formatPrice(liveP)} (Act)`;
+                    ctx.font = '700 10px "JetBrains Mono", monospace';
+                    ctx.textBaseline = 'middle';
+                    ctx.textAlign = 'right';
+                    const tw = ctx.measureText(liveLabel).width;
+                    const badgeY = Math.max(11, Math.min(h - 14, liveY));
+                    ctx.fillStyle = liveColor;
+                    ctx.fillRect(w - tw - 14, badgeY - 9, tw + 10, 18);
+                    ctx.fillStyle = '#06090e';
+                    ctx.fillText(liveLabel, w - 9, badgeY);
+                }
             }
 
             // Crosshair horizontal interactivo al pasar el cursor
@@ -1481,11 +1581,7 @@
                 const y = e.clientY - rect.top;
                 state.hmHoverY = y;
 
-                const base = state.price || 100.0;
-                const norm = 1 - (y / rect.height);
-                const span = (0.05 / state.hmZoom);
-                const centerShift = (-state.hmOffsetY / 300) * span;
-                const priceAtY = base * (1 + (norm - 0.5) * span * 2 + centerShift);
+                const priceAtY = yToPrice(y, rect.height);
 
                 el.hmTooltip.style.display = 'block';
                 el.hmTooltip.textContent = `Nivel: $${formatPrice(priceAtY)} (Pool Liq)`;
@@ -1537,6 +1633,8 @@
             state.assetName = selectedOption.text.split('(')[1]?.replace(')', '') || 'el activo';
 
             state.lastAnnouncedSignal = null;
+            state.hmZoom = 1.0;
+            state.hmOffsetY = 0;
 
             if (fullSym.startsWith('BINANCE:')) {
                 state.isCrypto = true;
