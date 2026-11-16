@@ -1920,11 +1920,12 @@
             const toIso = new Date(now + 10 * 86400000).toISOString();
 
             const isMarketMover = (ev) => {
+                const c = (ev.country || ev.currency || '').toUpperCase();
+                if (c !== 'US' && c !== 'USD') return false;
                 const t = (ev.title || '');
                 if (/Auction|Bill\s|Soybean|Reserve Assets|Monetary Conditions|Redbook|Capital Expend|s\.a\b/i.test(t)) return false;
                 if (ev.importance >= 1) return true;
-                return /Non-Farm|Nonfarm|CPI|Inflation|PPI|PCE|FOMC|Fed\s|Powell|Interest Rate|ECB|BOE|BOJ|GDP|Retail Sales|Unemployment|Jobless Claims|ISM|Empire State|Manufacturing PMI|Services PMI|JOLTS|ADP|Consumer Confidence|Industrial Production/i.test(t)
-                    && /^(US|EU|GB|DE|JP|CN|CA)$/i.test(ev.country || '');
+                return /Non-Farm|Nonfarm|CPI|Inflation|PPI|PCE|FOMC|Fed\s|Powell|Interest Rate|GDP|Retail Sales|Unemployment|Jobless Claims|ISM|Empire State|Manufacturing PMI|Services PMI|JOLTS|ADP|Consumer Confidence|Industrial Production|Building Permits|Housing|Durable Goods|Philadelphia Fed|Michigan/i.test(t);
             };
 
             const parseTvEvents = (list) => list
