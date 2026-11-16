@@ -773,6 +773,59 @@
                 </div>
                 <div id="macroUpcomingList" style="display:flex; flex-direction:column; gap:6px;"></div>
             </div>
+
+            <!-- HERRAMIENTAS PRO CON TOGGLES -->
+            <div class="macro-card" id="proToolsCard">
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:4px; margin-bottom:2px;">
+                    <span style="font-weight:800; color:#e2e8f0; letter-spacing:0.4px;">HERRAMIENTAS PRO</span>
+                    <span style="font-size:8.5px; color:#94a3b8;">ACTIVAR / DESACTIVAR</span>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:4px; margin-bottom:4px;">
+                    <button type="button" class="pro-toggle-btn" data-tool="sesiones" style="padding:3px 5px; font-size:8.5px; font-weight:700; border-radius:3px; cursor:pointer;">● Sesiones</button>
+                    <button type="button" class="pro-toggle-btn" data-tool="preNewsVoice" style="padding:3px 5px; font-size:8.5px; font-weight:700; border-radius:3px; cursor:pointer;">● Voz Pre-Noticia</button>
+                    <button type="button" class="pro-toggle-btn" data-tool="funding" style="padding:3px 5px; font-size:8.5px; font-weight:700; border-radius:3px; cursor:pointer;">● Funding Rate</button>
+                    <button type="button" class="pro-toggle-btn" data-tool="signalLog" style="padding:3px 5px; font-size:8.5px; font-weight:700; border-radius:3px; cursor:pointer;">● Historial Señales</button>
+                </div>
+
+                <!-- 1. Sesiones y Killzones -->
+                <div id="boxSesiones" style="padding:5px 6px; background:rgba(15,23,42,0.72); border:1px solid var(--border-color); border-radius:4px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:9px;">
+                        <span style="color:#94a3b8; font-weight:700;">SESIÓN ACTIVA</span>
+                        <span id="sessionActiveBadges" style="color:#38bdf8; font-weight:800;">--</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:3px; font-size:9px;">
+                        <span id="sessionNextLabel" style="color:#cbd5e1;">Apertura NY:</span>
+                        <span id="sessionNextCountdown" style="color:#00e676; font-weight:800;">--:--:--</span>
+                    </div>
+                </div>
+
+                <!-- 2. Estado Alerta Pre-Noticia -->
+                <div id="boxPreNewsVoice" style="padding:5px 6px; background:rgba(15,23,42,0.72); border:1px solid var(--border-color); border-radius:4px; display:flex; justify-content:space-between; align-items:center; font-size:9px;">
+                    <span style="color:#cbd5e1;">🔔 Aviso voz 10m antes (US)</span>
+                    <span id="preNewsStatusBadge" style="color:#00e676; font-weight:800;">ACTIVO</span>
+                </div>
+
+                <!-- 3. Funding Rate Binance Futures -->
+                <div id="boxFunding" style="padding:5px 6px; background:rgba(15,23,42,0.72); border:1px solid var(--border-color); border-radius:4px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:9px;">
+                        <span style="color:#94a3b8; font-weight:700;">FUNDING RATE</span>
+                        <span id="fundingRateVal" style="font-weight:800; color:#e2e8f0;">--</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:2px; font-size:8.5px; color:#94a3b8;">
+                        <span id="fundingBiasLabel">Sesgo apalancamiento</span>
+                        <span id="fundingNextTime">--</span>
+                    </div>
+                </div>
+
+                <!-- 4. Historial de Señales -->
+                <div id="boxSignalLog" style="padding:5px 6px; background:rgba(15,23,42,0.72); border:1px solid var(--border-color); border-radius:4px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <span style="font-size:9px; color:#94a3b8; font-weight:700;">ÚLTIMAS SEÑALES</span>
+                        <button type="button" id="btnClearSignalLog" style="background:transparent; border:1px solid var(--border-color); color:#94a3b8; font-size:8px; padding:1px 5px; border-radius:3px; cursor:pointer;">Limpiar</button>
+                    </div>
+                    <div id="signalLogList" style="display:flex; flex-direction:column; gap:3px; font-size:8.5px;"></div>
+                </div>
+            </div>
         </div>
 
     </main>
@@ -1295,6 +1348,7 @@
                 el.confluenceScore.textContent = `${score}% MEDIA`;
                 el.confluenceScore.style.color = '#ffa502';
             }
+            if (typeof logSignalIfNeeded === 'function') logSignalIfNeeded();
         }
 
         // HEATMAP MATRIX
@@ -1676,6 +1730,7 @@
             el.heatmapTitle.textContent = `${state.cleanSymbol} Heatmap`;
             updateTradingViewSymbol(state.tvSymbol);
             fetchRealRsiMatrix(state.cleanSymbol);
+            fetchFundingRate();
             evaluateMultiStrategyConfluence();
         });
 
@@ -2072,6 +2127,269 @@
             }).join('');
         }
 
+        // HERRAMIENTAS PRO (SESIONES, VOZ PRE-NOTICIA, FUNDING RATE, HISTORIAL DE SEÑALES)
+        const defaultProFeatures = { sesiones: true, preNewsVoice: true, funding: true, signalLog: true };
+        let proFeatures = defaultProFeatures;
+        try {
+            const savedPro = JSON.parse(localStorage.getItem('mk_pro_features') || 'null');
+            if (savedPro && typeof savedPro === 'object') proFeatures = { ...defaultProFeatures, ...savedPro };
+        } catch (e) {}
+
+        const preNewsNotifiedKeys = new Set();
+        let lastLoggedSignalKey = '';
+        let lastLoggedSignalTime = 0;
+
+        function applyProToolsVisibility() {
+            const boxMap = {
+                sesiones: document.getElementById('boxSesiones'),
+                preNewsVoice: document.getElementById('boxPreNewsVoice'),
+                funding: document.getElementById('boxFunding'),
+                signalLog: document.getElementById('boxSignalLog')
+            };
+
+            document.querySelectorAll('.pro-toggle-btn').forEach(btn => {
+                const key = btn.dataset.tool;
+                const active = !!proFeatures[key];
+                btn.style.background = active ? '#1e293b' : '#0f172a';
+                btn.style.color = active ? '#00e676' : '#64748b';
+                btn.style.border = active ? '1px solid #00e676' : '1px solid var(--border-color)';
+                btn.textContent = `${active ? '●' : '○'} ${btn.textContent.replace(/^[●○]\s*/, '')}`;
+                if (boxMap[key]) {
+                    boxMap[key].style.display = active ? (key === 'preNewsVoice' ? 'flex' : 'block') : 'none';
+                }
+            });
+
+            const preBadge = document.getElementById('preNewsStatusBadge');
+            if (preBadge) {
+                preBadge.textContent = proFeatures.preNewsVoice ? 'ACTIVO' : 'INACTIVO';
+                preBadge.style.color = proFeatures.preNewsVoice ? '#00e676' : '#64748b';
+            }
+        }
+
+        function setupProTools() {
+            document.querySelectorAll('.pro-toggle-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const key = btn.dataset.tool;
+                    proFeatures[key] = !proFeatures[key];
+                    localStorage.setItem('mk_pro_features', JSON.stringify(proFeatures));
+                    applyProToolsVisibility();
+                    if (key === 'funding' && proFeatures.funding) fetchFundingRate();
+                });
+            });
+
+            const btnClear = document.getElementById('btnClearSignalLog');
+            if (btnClear) {
+                btnClear.addEventListener('click', () => {
+                    localStorage.removeItem('mk_signal_history');
+                    renderSignalLogUI();
+                });
+            }
+
+            applyProToolsVisibility();
+            renderSignalLogUI();
+        }
+
+        function updateMarketSessionsUI() {
+            if (!proFeatures.sesiones) return;
+            const badgesEl = document.getElementById('sessionActiveBadges');
+            const labelEl = document.getElementById('sessionNextLabel');
+            const countEl = document.getElementById('sessionNextCountdown');
+            if (!badgesEl || !labelEl || !countEl) return;
+
+            const now = new Date();
+            const utcHour = now.getUTCHours() + now.getUTCMinutes() / 60;
+            // Horarios estándar UTC: Asia 00-09, Londres 08-17, NY 13:30-21 (aprox), usamos NY exacto con America/New_York
+            const nyParts = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'America/New_York',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                weekday: 'short',
+                hour12: false
+            }).formatToParts(now);
+            const nyH = parseInt(nyParts.find(p => p.type === 'hour')?.value || '0', 10);
+            const nyM = parseInt(nyParts.find(p => p.type === 'minute')?.value || '0', 10);
+            const nyS = parseInt(nyParts.find(p => p.type === 'second')?.value || '0', 10);
+            const nyDow = nyParts.find(p => p.type === 'weekday')?.value || '';
+            const nySecOfDay = nyH * 3600 + nyM * 60 + nyS;
+
+            const isWeekend = nyDow === 'Sat' || nyDow === 'Sun';
+            const ldnOpen = !isWeekend && utcHour >= 8 && utcHour < 16.5;
+            const nyOpen = !isWeekend && nySecOfDay >= (9 * 3600 + 30 * 60) && nySecOfDay < (16 * 3600);
+            const asiaOpen = !isWeekend && (utcHour >= 0 && utcHour < 8);
+
+            const activeList = [];
+            if (asiaOpen) activeList.push('Asia');
+            if (ldnOpen) activeList.push('Londres');
+            if (nyOpen) activeList.push('Nueva York');
+
+            if (isWeekend) {
+                badgesEl.textContent = 'Fin de Semana (Solo Cripto)';
+                badgesEl.style.color = '#fbbf24';
+            } else if (ldnOpen && nyOpen) {
+                badgesEl.textContent = '🔥 Overlap LDN-NY';
+                badgesEl.style.color = '#00e676';
+            } else if (activeList.length) {
+                badgesEl.textContent = activeList.join(' + ');
+                badgesEl.style.color = '#38bdf8';
+            } else {
+                badgesEl.textContent = 'Pre-Mercado';
+                badgesEl.style.color = '#94a3b8';
+            }
+
+            const nyOpenSec = 9 * 3600 + 30 * 60;
+            const nyCloseSec = 16 * 3600;
+            let diffSec = 0;
+            if (!isWeekend && nyOpen) {
+                labelEl.textContent = 'Cierre Bolsa NY:';
+                diffSec = nyCloseSec - nySecOfDay;
+                countEl.style.color = '#fbbf24';
+            } else {
+                labelEl.textContent = 'Apertura Bolsa NY:';
+                countEl.style.color = '#00e676';
+                if (!isWeekend && nySecOfDay < nyOpenSec) {
+                    diffSec = nyOpenSec - nySecOfDay;
+                } else {
+                    const daysToAdd = nyDow === 'Fri' ? 3 : (nyDow === 'Sat' ? 2 : 1);
+                    diffSec = daysToAdd * 86400 - nySecOfDay + nyOpenSec;
+                }
+            }
+
+            const d = Math.floor(diffSec / 86400);
+            const h = Math.floor((diffSec % 86400) / 3600);
+            const m = Math.floor((diffSec % 3600) / 60);
+            const s = diffSec % 60;
+            const pad = (n) => String(n).padStart(2, '0');
+            countEl.textContent = d > 0 ? `${d}d ${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(h)}:${pad(m)}:${pad(s)}`;
+        }
+
+        function checkPreNewsVoiceAlert() {
+            if (!proFeatures.preNewsVoice || !state.voiceEnabled || !macroEventsCache.length) return;
+            const nowMs = Date.now();
+            for (const ev of macroEventsCache) {
+                if (ev.impact !== 'High') continue;
+                const diffSec = Math.floor((ev.dateObj.getTime() - nowMs) / 1000);
+                const key = `${ev.title}_${ev.dateObj.getTime()}`;
+                if (diffSec > 0 && diffSec <= 600 && !preNewsNotifiedKeys.has(key)) {
+                    preNewsNotifiedKeys.add(key);
+                    const minsLeft = Math.max(1, Math.ceil(diffSec / 60));
+                    speak(`Atención. En ${minsLeft} minutos sale el dato de Estados Unidos: ${ev.title}. Precaución con la volatilidad.`, true);
+                    break;
+                }
+            }
+        }
+
+        async function fetchFundingRate() {
+            if (!proFeatures.funding) return;
+            const valEl = document.getElementById('fundingRateVal');
+            const biasEl = document.getElementById('fundingBiasLabel');
+            const timeEl = document.getElementById('fundingNextTime');
+            if (!valEl || !biasEl || !timeEl) return;
+
+            if (!state.isCrypto) {
+                valEl.textContent = 'N/A';
+                valEl.style.color = '#64748b';
+                biasEl.textContent = 'Solo disponible en Cripto';
+                timeEl.textContent = '--';
+                return;
+            }
+
+            try {
+                const res = await fetch(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${state.cleanSymbol}`);
+                if (!res.ok) throw new Error('No futures');
+                const data = await res.json();
+                const rate = parseFloat(data.lastFundingRate) * 100;
+                if (isNaN(rate)) throw new Error('NaN');
+
+                valEl.textContent = `${rate >= 0 ? '+' : ''}${rate.toFixed(4)}%`;
+                if (rate >= 0.03) {
+                    valEl.style.color = '#ff4d6d';
+                    biasEl.textContent = '⚠ Exceso de Longs (Pagan Longs)';
+                } else if (rate <= -0.01) {
+                    valEl.style.color = '#00e676';
+                    biasEl.textContent = '⚡ Exceso de Shorts (Posible Squeeze)';
+                } else {
+                    valEl.style.color = '#38bdf8';
+                    biasEl.textContent = 'Apalancamiento equilibrado';
+                }
+
+                if (data.nextFundingTime) {
+                    const diffMin = Math.max(0, Math.floor((data.nextFundingTime - Date.now()) / 60000));
+                    const hh = Math.floor(diffMin / 60);
+                    const mm = diffMin % 60;
+                    timeEl.textContent = `Próx: ${hh}h ${mm}m`;
+                }
+            } catch (e) {
+                valEl.textContent = '--';
+                valEl.style.color = '#64748b';
+                biasEl.textContent = 'Sin datos de futuros';
+                timeEl.textContent = '--';
+            }
+        }
+
+        function logSignalIfNeeded() {
+            if (!proFeatures.signalLog) return;
+            if (!state.signalType || state.signalType === 'WAIT' || state.confluenceScore < 75 || !state.price) return;
+
+            const now = Date.now();
+            const key = `${state.cleanSymbol}_${state.signalType}`;
+            if (lastLoggedSignalKey === key && (now - lastLoggedSignalTime) < 300000) return;
+
+            lastLoggedSignalKey = key;
+            lastLoggedSignalTime = now;
+
+            let history = [];
+            try {
+                history = JSON.parse(localStorage.getItem('mk_signal_history') || '[]');
+                if (!Array.isArray(history)) history = [];
+            } catch (e) { history = []; }
+
+            const arTime = new Intl.DateTimeFormat('es-AR', {
+                timeZone: 'America/Argentina/Buenos_Aires',
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            }).format(new Date(now));
+
+            history.unshift({
+                symbol: state.cleanSymbol,
+                type: state.signalType,
+                price: formatPrice(state.price),
+                score: state.confluenceScore,
+                time: arTime
+            });
+            history = history.slice(0, 8);
+            localStorage.setItem('mk_signal_history', JSON.stringify(history));
+            renderSignalLogUI();
+        }
+
+        function renderSignalLogUI() {
+            const listEl = document.getElementById('signalLogList');
+            if (!listEl) return;
+            let history = [];
+            try {
+                history = JSON.parse(localStorage.getItem('mk_signal_history') || '[]');
+                if (!Array.isArray(history)) history = [];
+            } catch (e) { history = []; }
+
+            if (!history.length) {
+                listEl.innerHTML = `<div style="color:#64748b; text-align:center; padding:4px 0;">Esperando señal ≥75%...</div>`;
+                return;
+            }
+
+            listEl.innerHTML = history.map(item => {
+                const isLong = item.type === 'LONG';
+                const col = isLong ? '#00e676' : '#ff4d6d';
+                return `<div style="display:flex; justify-content:space-between; align-items:center; padding:2px 4px; background:rgba(255,255,255,0.03); border-radius:3px;">
+                    <span style="color:${col}; font-weight:800;">${isLong ? '▲' : '▼'} ${item.symbol} (${item.score}%)</span>
+                    <span style="color:#cbd5e1;">$${item.price}</span>
+                    <span style="color:#64748b; font-size:7.8px;">${item.time}</span>
+                </div>`;
+            }).join('');
+        }
+
         function init() {
             // Sincronizar el selector si había un ticker guardado
             if (state.tvSymbol && el.tickerSelect.querySelector(`option[value="${state.tvSymbol}"]`)) {
@@ -2104,8 +2422,16 @@
 
             setupMacroFilterControls();
             fetchEconomicCalendar();
-            setInterval(updateMacroCalendarUI, 1000);
+            setupProTools();
+            updateMarketSessionsUI();
+            fetchFundingRate();
+            setInterval(() => {
+                updateMacroCalendarUI();
+                updateMarketSessionsUI();
+                checkPreNewsVoiceAlert();
+            }, 1000);
             setInterval(fetchEconomicCalendar, 60000);
+            setInterval(fetchFundingRate, 15000);
 
             setInterval(advanceHeatmapStep, 600);
             window.addEventListener('resize', renderFineHeatmap);
