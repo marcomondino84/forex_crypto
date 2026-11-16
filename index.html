@@ -2099,12 +2099,14 @@
                     : `<span style="font-size:8px; font-weight:800; padding:1px 5px; border-radius:3px; background:rgba(251,146,60,0.18); color:#fb923c;">★★ MEDIO</span>`;
 
                 const statusOrCountdown = isPast
-                    ? `<span style="font-size:11px; font-weight:800; color:#00e676;">✓ PUBLICADO</span>`
+                    ? (ev.actual
+                        ? `<span style="font-size:11px; font-weight:800; color:#00e676;">✓ PUBLICADO</span>`
+                        : `<span style="font-size:10px; font-weight:800; color:#fbbf24;">⏳ ESPERANDO DATO</span>`)
                     : `<span style="font-size:13px; font-weight:800; color:#00e676; letter-spacing:0.5px;">${formatMinuteCountdown(ev.dateObj, now)}</span>`;
 
                 const actualText = ev.actual
                     ? `<strong style="color:#00e676;">${ev.actual}</strong>`
-                    : (isPast ? `<span style="color:#94a3b8;">Publicado</span>` : `<span style="color:#fbbf24;">Pendiente</span>`);
+                    : (isPast ? `<span style="color:#fbbf24;">Sin actualizar</span>` : `<span style="color:#fbbf24;">Pendiente</span>`);
                 const forecastText = ev.forecast || '--';
                 const prevText = ev.previous || '--';
 
