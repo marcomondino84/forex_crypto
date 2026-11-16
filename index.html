@@ -1927,31 +1927,50 @@
 
         async function fetchEconomicCalendar() {
             let liveEvents = [];
+            const now = Date.now();
+            const fromIso = new Date(now - 7 * 86400000).toISOString();
+            const toIso = new Date(now + 10 * 86400000).toISOString();
+
+            const parseTvEvents = (list) => list
+                .filter(ev => ev.importance >= 0 && ev.date)
+                .map(ev => ({
+                    country: ev.country || ev.currency || 'US',
+                    title: translateMacroTitle(ev.title),
+                    impact: ev.importance >= 1 ? 'High' : 'Medium',
+                    actual: formatTvVal(ev.actual, ev.unit),
+                    forecast: formatTvVal(ev.forecast, ev.unit),
+                    previous: formatTvVal(ev.previous, ev.unit),
+                    dateObj: new Date(ev.date),
+                    isLiveFeed: true
+                }))
+                .filter(ev => !isNaN(ev.dateObj.getTime()))
+                .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+
+            // 1) Intentar calendar.php (XAMPP / DonWeb con PHP)
             try {
-                const now = Date.now();
-                const fromIso = new Date(now - 7 * 86400000).toISOString();
-                const toIso = new Date(now + 10 * 86400000).toISOString();
                 const res = await fetch(`calendar.php?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`);
                 if (res.ok) {
-                    const data = await res.json();
-                    const list = Array.isArray(data?.result) ? data.result : [];
-                    liveEvents = list
-                        .filter(ev => ev.importance >= 0 && ev.date)
-                        .map(ev => ({
-                            country: ev.country || ev.currency || 'US',
-                            title: translateMacroTitle(ev.title),
-                            impact: ev.importance >= 1 ? 'High' : 'Medium',
-                            actual: formatTvVal(ev.actual, ev.unit),
-                            forecast: formatTvVal(ev.forecast, ev.unit),
-                            previous: formatTvVal(ev.previous, ev.unit),
-                            dateObj: new Date(ev.date),
-                            isLiveFeed: true
-                        }))
-                        .filter(ev => !isNaN(ev.dateObj.getTime()))
-                        .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+                    const text = await res.text();
+                    if (text.trim().startsWith('{')) {
+                        const data = JSON.parse(text);
+                        if (Array.isArray(data?.result)) {
+                            liveEvents = parseTvEvents(data.result);
+                        }
+                    }
                 }
-            } catch (e) {
-                console.warn('Error cargando calendar.php:', e);
+            } catch (e) {}
+
+            // 2) Si es GitHub Pages (sin PHP), cargar calendar.json actualizado por GitHub Actions
+            if (!liveEvents.length) {
+                try {
+                    const res = await fetch(`calendar.json?t=${Date.now()}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (Array.isArray(data?.result)) {
+                            liveEvents = parseTvEvents(data.result);
+                        }
+                    }
+                } catch (e) {}
             }
 
             if (liveEvents.length > 0) {
