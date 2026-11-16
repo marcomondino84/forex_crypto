@@ -765,16 +765,7 @@
                     <button type="button" class="macro-filter-btn active" data-filter="hoy" style="flex:1; background:#1e293b; color:#38bdf8; border:1px solid #38bdf8; border-radius:3px; padding:2px 4px; font-size:9px; font-weight:700; cursor:pointer;">Hoy</button>
                     <button type="button" class="macro-filter-btn" data-filter="prox" style="flex:1; background:#0f172a; color:#94a3b8; border:1px solid var(--border-color); border-radius:3px; padding:2px 4px; font-size:9px; font-weight:700; cursor:pointer;">Próx</button>
                 </div>
-                <div id="macroNextTitle" style="color:#f8fafc; font-weight:700; font-size:11px; line-height:1.25;">Cargando eventos macro...</div>
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-                    <span id="macroNextDateAr" style="font-size:9.5px; color:#94a3b8;">--/-- · --:-- hs AR</span>
-                    <span id="macroNextImpact" style="font-size:8.5px; font-weight:800; padding:1px 5px; border-radius:3px; background:rgba(255,42,68,0.18); color:#ff4d6d;">🔴 ALTO</span>
-                </div>
-                <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:2px;">
-                    <span style="font-size:9px; color:var(--text-muted);">FALTA:</span>
-                    <span id="macroCountdown" style="font-size:14px; font-weight:800; color:#00e676; letter-spacing:0.5px;">--:--:--</span>
-                </div>
-                <div id="macroUpcomingList" style="display:flex; flex-direction:column; gap:3px; margin-top:4px; padding-top:4px; border-top:1px dashed var(--border-color); font-size:8.5px; max-height:220px; overflow-y:auto;"></div>
+                <div id="macroUpcomingList" style="display:flex; flex-direction:column; gap:6px; max-height:280px; overflow-y:auto;"></div>
             </div>
         </div>
 
@@ -1931,8 +1922,16 @@
             const fromIso = new Date(now - 7 * 86400000).toISOString();
             const toIso = new Date(now + 10 * 86400000).toISOString();
 
+            const isMarketMover = (ev) => {
+                const t = (ev.title || '');
+                if (/Auction|Bill\s|Soybean|Reserve Assets|Monetary Conditions|Redbook|Capital Expend|s\.a\b/i.test(t)) return false;
+                if (ev.importance >= 1) return true;
+                return /Non-Farm|Nonfarm|CPI|Inflation|PPI|PCE|FOMC|Fed\s|Powell|Interest Rate|ECB|BOE|BOJ|GDP|Retail Sales|Unemployment|Jobless Claims|ISM|Empire State|Manufacturing PMI|Services PMI|JOLTS|ADP|Consumer Confidence|Industrial Production/i.test(t)
+                    && /^(US|EU|GB|DE|JP|CN|CA)$/i.test(ev.country || '');
+            };
+
             const parseTvEvents = (list) => list
-                .filter(ev => ev.importance >= 0 && ev.date)
+                .filter(ev => ev.importance >= 0 && ev.date && isMarketMover(ev))
                 .map(ev => ({
                     country: ev.country || ev.currency || 'US',
                     title: translateMacroTitle(ev.title),
@@ -1983,10 +1982,6 @@
 
         function updateMacroCalendarUI() {
             const clockEl = document.getElementById('macroArClock');
-            const titleEl = document.getElementById('macroNextTitle');
-            const dateEl = document.getElementById('macroNextDateAr');
-            const impactEl = document.getElementById('macroNextImpact');
-            const countEl = document.getElementById('macroCountdown');
             const listEl = document.getElementById('macroUpcomingList');
 
             const now = new Date();
@@ -2005,87 +2000,67 @@
                 macroEventsCache = generateMacroScheduleWindow();
             }
 
-            const nextEv = macroEventsCache.find(ev => ev.dateObj.getTime() > now.getTime()) || macroEventsCache[macroEventsCache.length - 1];
-            if (nextEv && titleEl && dateEl && countEl) {
-                titleEl.textContent = `${getCountryFlag(nextEv.country)} ${nextEv.title}`;
-                dateEl.textContent = formatArgentinaDateTime(nextEv.dateObj);
+            if (!listEl) return;
 
-                if (impactEl) {
-                    if (nextEv.impact === 'High') {
-                        impactEl.textContent = '🔴 ALTO IMPACTO';
-                        impactEl.style.background = 'rgba(255,42,68,0.18)';
-                        impactEl.style.color = '#ff4d6d';
-                    } else {
-                        impactEl.textContent = '🟠 MEDIO';
-                        impactEl.style.background = 'rgba(251,146,60,0.18)';
-                        impactEl.style.color = '#fb923c';
-                    }
-                }
+            const todayKey = getArgentinaDateKey(now);
+            const yesterdayKey = getArgentinaDateKey(new Date(now.getTime() - 86400000));
 
-                const diffSec = Math.max(0, Math.floor((nextEv.dateObj.getTime() - now.getTime()) / 1000));
-                const days = Math.floor(diffSec / 86400);
-                const hrs = Math.floor((diffSec % 86400) / 3600);
-                const mins = Math.floor((diffSec % 3600) / 60);
-                const secs = diffSec % 60;
-                const pad = (n) => String(n).padStart(2, '0');
-                countEl.textContent = days > 0 ? `${days}d ${pad(hrs)}:${pad(mins)}:${pad(secs)}` : `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+            let filtered = [];
+            if (macroFilter === 'hist') {
+                filtered = macroEventsCache.filter(ev => getArgentinaDateKey(ev.dateObj) < todayKey).reverse();
+            } else if (macroFilter === 'ayer') {
+                filtered = macroEventsCache.filter(ev => getArgentinaDateKey(ev.dateObj) === yesterdayKey);
+            } else if (macroFilter === 'hoy') {
+                filtered = macroEventsCache.filter(ev => getArgentinaDateKey(ev.dateObj) === todayKey);
+            } else {
+                filtered = macroEventsCache.filter(ev => ev.dateObj.getTime() > now.getTime());
             }
 
-            if (listEl) {
-                const todayKey = getArgentinaDateKey(now);
-                const yesterdayKey = getArgentinaDateKey(new Date(now.getTime() - 86400000));
-
-                let filtered = [];
-                if (macroFilter === 'hist') {
-                    filtered = macroEventsCache.filter(ev => getArgentinaDateKey(ev.dateObj) < todayKey).reverse();
-                } else if (macroFilter === 'ayer') {
-                    filtered = macroEventsCache.filter(ev => getArgentinaDateKey(ev.dateObj) === yesterdayKey);
-                } else if (macroFilter === 'hoy') {
-                    filtered = macroEventsCache.filter(ev => getArgentinaDateKey(ev.dateObj) === todayKey);
-                } else {
-                    filtered = macroEventsCache.filter(ev => ev.dateObj.getTime() > now.getTime());
-                }
-
-                if (!filtered.length) {
-                    const emptyMsgs = {
-                        hist: 'Sin historial previo en esta ventana.',
-                        ayer: 'Sin eventos registrados ayer.',
-                        hoy: 'Sin eventos macro programados para hoy.',
-                        prox: 'Sin eventos próximos.'
-                    };
-                    listEl.innerHTML = `<div style="color:#64748b; text-align:center; padding:6px 0;">${emptyMsgs[macroFilter] || 'Sin eventos.'}</div>`;
-                    return;
-                }
-
-                listEl.innerHTML = filtered.map(ev => {
-                    const isPast = ev.dateObj.getTime() <= now.getTime();
-                    const shortDate = formatArgentinaDateTime(ev.dateObj).replace(' hs AR', '');
-                    const timeBadge = isPast
-                        ? `<span style="color:#00e676; font-size:8px; font-weight:700;">✓ Pub</span>`
-                        : `<span style="color:#38bdf8; font-size:8px; font-weight:700;">${formatMinuteCountdown(ev.dateObj, now)}</span>`;
-
-                    const actualText = ev.actual
-                        ? `<strong style="color:#00e676;">${ev.actual}</strong>`
-                        : (isPast ? `<span style="color:#94a3b8;">Pub</span>` : `<span style="color:#fbbf24;">Pend</span>`);
-                    const forecastText = ev.forecast || '--';
-                    const prevText = ev.previous || '--';
-
-                    const stars = ev.impact === 'High'
-                        ? `<span style="color:#ff4d6d; font-size:7.5px;">★★★</span>`
-                        : `<span style="color:#fb923c; font-size:7.5px;">★★</span>`;
-
-                    return `<div style="display:flex; flex-direction:column; gap:1px; padding:3px 5px; background:rgba(15,23,42,0.72); border:1px solid rgba(255,255,255,0.05); border-radius:3px;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:4px; color:#e2e8f0; font-size:8.5px; line-height:1.2;">
-                            <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:600;">${getCountryFlag(ev.country)} ${stars} ${ev.title}</span>
-                            <span style="flex-shrink:0;">${timeBadge}</span>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:7.8px; color:#94a3b8; line-height:1.15;">
-                            <span>${shortDate}</span>
-                            <span>A:${actualText} · E:${forecastText} · P:${prevText}</span>
-                        </div>
-                    </div>`;
-                }).join('');
+            if (!filtered.length) {
+                const emptyMsgs = {
+                    hist: 'Sin eventos relevantes en el historial.',
+                    ayer: 'Sin eventos relevantes ayer.',
+                    hoy: 'Sin eventos relevantes que muevan el mercado hoy.',
+                    prox: 'Sin eventos próximos relevantes.'
+                };
+                listEl.innerHTML = `<div style="color:#64748b; text-align:center; padding:10px 0; font-size:10px;">${emptyMsgs[macroFilter] || 'Sin eventos.'}</div>`;
+                return;
             }
+
+            listEl.innerHTML = filtered.map(ev => {
+                const isPast = ev.dateObj.getTime() <= now.getTime();
+                const dateAr = formatArgentinaDateTime(ev.dateObj);
+                const impactBadge = ev.impact === 'High'
+                    ? `<span style="font-size:8px; font-weight:800; padding:1px 5px; border-radius:3px; background:rgba(255,42,68,0.18); color:#ff4d6d;">★★★ ALTO</span>`
+                    : `<span style="font-size:8px; font-weight:800; padding:1px 5px; border-radius:3px; background:rgba(251,146,60,0.18); color:#fb923c;">★★ MEDIO</span>`;
+
+                const statusOrCountdown = isPast
+                    ? `<span style="font-size:11px; font-weight:800; color:#00e676;">✓ PUBLICADO</span>`
+                    : `<span style="font-size:13px; font-weight:800; color:#00e676; letter-spacing:0.5px;">${formatMinuteCountdown(ev.dateObj, now)}</span>`;
+
+                const actualText = ev.actual
+                    ? `<strong style="color:#00e676;">${ev.actual}</strong>`
+                    : (isPast ? `<span style="color:#94a3b8;">Publicado</span>` : `<span style="color:#fbbf24;">Pendiente</span>`);
+                const forecastText = ev.forecast || '--';
+                const prevText = ev.previous || '--';
+
+                return `<div style="display:flex; flex-direction:column; gap:3px; padding:6px 7px; background:rgba(15,23,42,0.75); border:1px solid var(--border-color); border-radius:4px;">
+                    <div style="color:#f8fafc; font-weight:700; font-size:10.5px; line-height:1.25;">${getCountryFlag(ev.country)} ${ev.title}</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+                        <span style="font-size:9px; color:#94a3b8;">${dateAr}</span>
+                        ${impactBadge}
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-top:1px;">
+                        <span style="font-size:8.5px; color:var(--text-muted);">${isPast ? 'ESTADO:' : 'FALTA:'}</span>
+                        ${statusOrCountdown}
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:8.5px; color:#94a3b8; border-top:1px dashed rgba(255,255,255,0.06); padding-top:3px;">
+                        <span>Act: ${actualText}</span>
+                        <span>Est: <strong style="color:#cbd5e1;">${forecastText}</strong></span>
+                        <span>Ant: <strong style="color:#cbd5e1;">${prevText}</strong></span>
+                    </div>
+                </div>`;
+            }).join('');
         }
 
         function init() {
