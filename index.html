@@ -1726,31 +1726,47 @@
         let macroFilter = 'hoy';
 
         function getCountryFlag(code) {
-            const flags = { USD: '🇺🇸', EUR: '🇪🇺', GBP: '🇬🇧', JPY: '🇯🇵', CAD: '🇨🇦', AUD: '🇦🇺', CHF: '🇨🇭', CNY: '🇨🇳' };
+            const flags = {
+                USD: '🇺🇸', US: '🇺🇸',
+                EUR: '🇪🇺', EU: '🇪🇺', DE: '🇩🇪',
+                GBP: '🇬🇧', GB: '🇬🇧',
+                JPY: '🇯🇵', JP: '🇯🇵',
+                CAD: '🇨🇦', CA: '🇨🇦',
+                AUD: '🇦🇺', AU: '🇦🇺',
+                NZD: '🇳🇿', NZ: '🇳🇿',
+                CHF: '🇨🇭', CH: '🇨🇭',
+                CNY: '🇨🇳', CN: '🇨🇳'
+            };
             return flags[code] || '🌐';
         }
 
         function translateMacroTitle(title) {
             if (!title) return 'Dato Macroeconómico';
             const rules = [
-                [/Non-Farm Employment Change/i, 'Nóminas No Agrícolas (NFP)'],
+                [/Non-Farm|Nonfarm Payrolls/i, 'Nóminas No Agrícolas (NFP)'],
                 [/Unemployment Rate/i, 'Tasa de Desempleo'],
-                [/Unemployment Claims/i, 'Solicitudes de Desempleo'],
+                [/Initial Jobless Claims|Unemployment Claims/i, 'Solicitudes de Desempleo'],
+                [/Core Inflation Rate YoY/i, 'Inflación Subyacente (Anual)'],
+                [/Core Inflation Rate MoM/i, 'Inflación Subyacente (Mensual)'],
+                [/Inflation Rate YoY/i, 'Inflación / IPC (Anual)'],
+                [/Inflation Rate MoM/i, 'Inflación / IPC (Mensual)'],
                 [/Core CPI/i, 'IPC Subyacente (Inflación)'],
-                [/\bCPI\b/i, 'IPC / Inflación'],
+                [/\bCPI\b|Consumer Price Index/i, 'IPC / Inflación'],
                 [/Core PPI/i, 'IPP Subyacente'],
                 [/\bPPI\b/i, 'IPP (Precios Productor)'],
                 [/Core PCE Price Index/i, 'Índice PCE Subyacente (Fed)'],
                 [/Core Retail Sales/i, 'Ventas Minoristas Subyacentes'],
                 [/Retail Sales/i, 'Ventas Minoristas'],
-                [/FOMC Statement|Federal Funds Rate|Fed Interest Rate/i, 'Decisión de Tasas Fed (FOMC)'],
-                [/FOMC Meeting Minutes/i, 'Minutas del FOMC (Fed)'],
+                [/NY Empire State Manufacturing/i, 'Índice Manufacturero Empire State'],
+                [/Industrial Production/i, 'Producción Industrial'],
+                [/Foreign Direct Investment/i, 'Inversión Extranjera Directa'],
+                [/FOMC|Federal Funds Rate|Fed Interest Rate/i, 'Decisión / Minutas Fed (FOMC)'],
                 [/Powell Speaks|Fed Chair Powell/i, 'Discurso de Powell (Fed)'],
                 [/ISM Manufacturing PMI/i, 'PMI Manufacturero ISM'],
                 [/ISM Services PMI/i, 'PMI Servicios ISM'],
                 [/Flash Manufacturing PMI/i, 'PMI Manufacturero Flash'],
                 [/Flash Services PMI/i, 'PMI Servicios Flash'],
-                [/Advance GDP|Prelim GDP|Final GDP|\bGDP\b/i, 'PIB (Producto Interno Bruto)'],
+                [/GDP Growth Rate|\bGDP\b/i, 'PIB (Producto Interno Bruto)'],
                 [/Crude Oil Inventories/i, 'Inventarios de Petróleo (EIA)'],
                 [/CB Consumer Confidence/i, 'Confianza del Consumidor (CB)'],
                 [/Monetary Policy Statement|Main Refinancing Rate/i, 'Decisión de Tasas BCE'],
@@ -1761,6 +1777,11 @@
                 if (regex.test(title)) return es;
             }
             return title;
+        }
+
+        function formatTvVal(val, unit) {
+            if (val === null || val === undefined || val === '') return '';
+            return unit ? `${val}${unit}` : `${val}`;
         }
 
         function nyTimeToDate(year, month, day, nyHour, nyMinute) {
@@ -1907,37 +1928,37 @@
         async function fetchEconomicCalendar() {
             let liveEvents = [];
             try {
-                const res = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json');
+                const now = Date.now();
+                const fromIso = new Date(now - 7 * 86400000).toISOString();
+                const toIso = new Date(now + 10 * 86400000).toISOString();
+                const res = await fetch(`calendar.php?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`);
                 if (res.ok) {
                     const data = await res.json();
-                    if (Array.isArray(data)) {
-                        liveEvents = data
-                            .filter(ev => (ev.impact === 'High' || ev.impact === 'Medium') && ev.date)
-                            .map(ev => ({
-                                country: ev.country || 'USD',
-                                title: translateMacroTitle(ev.title),
-                                impact: ev.impact,
-                                actual: ev.actual ? String(ev.actual).trim() : '',
-                                forecast: ev.forecast ? String(ev.forecast).trim() : '',
-                                previous: ev.previous ? String(ev.previous).trim() : '',
-                                dateObj: new Date(ev.date),
-                                isLiveFeed: true
-                            }))
-                            .filter(ev => !isNaN(ev.dateObj.getTime()))
-                            .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
-                    }
+                    const list = Array.isArray(data?.result) ? data.result : [];
+                    liveEvents = list
+                        .filter(ev => ev.importance >= 0 && ev.date)
+                        .map(ev => ({
+                            country: ev.country || ev.currency || 'US',
+                            title: translateMacroTitle(ev.title),
+                            impact: ev.importance >= 1 ? 'High' : 'Medium',
+                            actual: formatTvVal(ev.actual, ev.unit),
+                            forecast: formatTvVal(ev.forecast, ev.unit),
+                            previous: formatTvVal(ev.previous, ev.unit),
+                            dateObj: new Date(ev.date),
+                            isLiveFeed: true
+                        }))
+                        .filter(ev => !isNaN(ev.dateObj.getTime()))
+                        .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
                 }
             } catch (e) {
-                // Fallback automático si CORS bloquea la descarga directa
+                console.warn('Error cargando calendar.php:', e);
             }
 
-            const baseSchedule = generateMacroScheduleWindow();
-            const merged = [...liveEvents];
-            for (const fb of baseSchedule) {
-                const exists = merged.some(m => Math.abs(m.dateObj.getTime() - fb.dateObj.getTime()) < 5400000 && m.title === fb.title);
-                if (!exists) merged.push(fb);
+            if (liveEvents.length > 0) {
+                macroEventsCache = liveEvents;
+            } else {
+                macroEventsCache = generateMacroScheduleWindow();
             }
-            macroEventsCache = merged.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
             updateMacroCalendarUI();
         }
 
@@ -2030,9 +2051,13 @@
                     const forecastText = ev.forecast || '--';
                     const prevText = ev.previous || '--';
 
+                    const stars = ev.impact === 'High'
+                        ? `<span style="color:#ff4d6d; font-size:7.5px;">★★★</span>`
+                        : `<span style="color:#fb923c; font-size:7.5px;">★★</span>`;
+
                     return `<div style="display:flex; flex-direction:column; gap:1px; padding:3px 5px; background:rgba(15,23,42,0.72); border:1px solid rgba(255,255,255,0.05); border-radius:3px;">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:4px; color:#e2e8f0; font-size:8.5px; line-height:1.2;">
-                            <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:600;">${getCountryFlag(ev.country)} ${ev.title}</span>
+                            <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:600;">${getCountryFlag(ev.country)} ${stars} ${ev.title}</span>
                             <span style="flex-shrink:0;">${timeBadge}</span>
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center; font-size:7.8px; color:#94a3b8; line-height:1.15;">
