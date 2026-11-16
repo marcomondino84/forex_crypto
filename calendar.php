@@ -1,7 +1,7 @@
 <?php
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
-header('Cache-Control: public, max-age=30');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 
 $now = time();
 $defaultFrom = gmdate('Y-m-d\TH:i:s.000\Z', $now - 7 * 86400);
