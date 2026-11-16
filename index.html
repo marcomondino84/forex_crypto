@@ -762,8 +762,8 @@
                 <div style="display:flex; gap:4px; margin:2px 0 4px 0;">
                     <button type="button" class="macro-filter-btn" data-filter="hist" style="flex:1; background:#0f172a; color:#94a3b8; border:1px solid var(--border-color); border-radius:3px; padding:2px 4px; font-size:9px; font-weight:700; cursor:pointer;">Hist</button>
                     <button type="button" class="macro-filter-btn" data-filter="ayer" style="flex:1; background:#0f172a; color:#94a3b8; border:1px solid var(--border-color); border-radius:3px; padding:2px 4px; font-size:9px; font-weight:700; cursor:pointer;">Ayer</button>
-                    <button type="button" class="macro-filter-btn" data-filter="hoy" style="flex:1; background:#0f172a; color:#94a3b8; border:1px solid var(--border-color); border-radius:3px; padding:2px 4px; font-size:9px; font-weight:700; cursor:pointer;">Hoy</button>
-                    <button type="button" class="macro-filter-btn active" data-filter="prox" style="flex:1; background:#1e293b; color:#38bdf8; border:1px solid #38bdf8; border-radius:3px; padding:2px 4px; font-size:9px; font-weight:700; cursor:pointer;">Próx</button>
+                    <button type="button" class="macro-filter-btn active" data-filter="hoy" style="flex:1; background:#1e293b; color:#38bdf8; border:1px solid #38bdf8; border-radius:3px; padding:2px 4px; font-size:9px; font-weight:700; cursor:pointer;">Hoy</button>
+                    <button type="button" class="macro-filter-btn" data-filter="prox" style="flex:1; background:#0f172a; color:#94a3b8; border:1px solid var(--border-color); border-radius:3px; padding:2px 4px; font-size:9px; font-weight:700; cursor:pointer;">Próx</button>
                 </div>
                 <div id="macroNextTitle" style="color:#f8fafc; font-weight:700; font-size:11px; line-height:1.25;">Cargando eventos macro...</div>
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
@@ -774,7 +774,7 @@
                     <span style="font-size:9px; color:var(--text-muted);">FALTA:</span>
                     <span id="macroCountdown" style="font-size:14px; font-weight:800; color:#00e676; letter-spacing:0.5px;">--:--:--</span>
                 </div>
-                <div id="macroUpcomingList" style="display:flex; flex-direction:column; gap:5px; margin-top:4px; padding-top:5px; border-top:1px dashed var(--border-color); font-size:9.5px; max-height:150px; overflow-y:auto;"></div>
+                <div id="macroUpcomingList" style="display:flex; flex-direction:column; gap:3px; margin-top:4px; padding-top:4px; border-top:1px dashed var(--border-color); font-size:8.5px; max-height:220px; overflow-y:auto;"></div>
             </div>
         </div>
 
@@ -1723,7 +1723,7 @@
 
         // CALENDARIO ECONÓMICO (HORA ARGENTINA - UTC-3) CON HISTORIAL Y DATOS EN VIVO
         let macroEventsCache = [];
-        let macroFilter = 'prox';
+        let macroFilter = 'hoy';
 
         function getCountryFlag(code) {
             const flags = { USD: '🇺🇸', EUR: '🇪🇺', GBP: '🇬🇧', JPY: '🇯🇵', CAD: '🇨🇦', AUD: '🇦🇺', CHF: '🇨🇭', CNY: '🇨🇳' };
@@ -1884,10 +1884,8 @@
             const hrs = Math.floor((diffSec % 86400) / 3600);
             const mins = Math.floor((diffSec % 3600) / 60);
             const secs = diffSec % 60;
-            if (days > 0) return `en ${days}d ${hrs}h ${mins}m`;
-            if (hrs > 0) return `en ${hrs}h ${mins}m`;
-            if (mins > 0) return `en ${mins}m ${secs}s`;
-            return `en ${secs}s`;
+            const pad = (n) => String(n).padStart(2, '0');
+            return days > 0 ? `${days}d ${pad(hrs)}:${pad(mins)}:${pad(secs)}` : `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
         }
 
         function setupMacroFilterControls() {
@@ -2019,27 +2017,27 @@
                     return;
                 }
 
-                listEl.innerHTML = filtered.slice(0, 12).map(ev => {
+                listEl.innerHTML = filtered.map(ev => {
                     const isPast = ev.dateObj.getTime() <= now.getTime();
                     const shortDate = formatArgentinaDateTime(ev.dateObj).replace(' hs AR', '');
                     const timeBadge = isPast
-                        ? `<span style="color:#00e676; font-size:8.5px; font-weight:700;">✓ Publicado</span>`
-                        : `<span style="color:#38bdf8; font-size:8.5px; font-weight:700;">⏳ ${formatMinuteCountdown(ev.dateObj, now)}</span>`;
+                        ? `<span style="color:#00e676; font-size:8px; font-weight:700;">✓ Pub</span>`
+                        : `<span style="color:#38bdf8; font-size:8px; font-weight:700;">${formatMinuteCountdown(ev.dateObj, now)}</span>`;
 
                     const actualText = ev.actual
                         ? `<strong style="color:#00e676;">${ev.actual}</strong>`
-                        : (isPast ? `<span style="color:#94a3b8;">Publicado</span>` : `<span style="color:#fbbf24;">Pendiente</span>`);
+                        : (isPast ? `<span style="color:#94a3b8;">Pub</span>` : `<span style="color:#fbbf24;">Pend</span>`);
                     const forecastText = ev.forecast || '--';
                     const prevText = ev.previous || '--';
 
-                    return `<div style="display:flex; flex-direction:column; gap:2px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.04);">
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; color:#e2e8f0;">
+                    return `<div style="display:flex; flex-direction:column; gap:1px; padding:3px 5px; background:rgba(15,23,42,0.72); border:1px solid rgba(255,255,255,0.05); border-radius:3px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:4px; color:#e2e8f0; font-size:8.5px; line-height:1.2;">
                             <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:600;">${getCountryFlag(ev.country)} ${ev.title}</span>
                             <span style="flex-shrink:0;">${timeBadge}</span>
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:8.5px; color:#94a3b8;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:7.8px; color:#94a3b8; line-height:1.15;">
                             <span>${shortDate}</span>
-                            <span>Act: ${actualText} · Est: ${forecastText} · Ant: ${prevText}</span>
+                            <span>A:${actualText} · E:${forecastText} · P:${prevText}</span>
                         </div>
                     </div>`;
                 }).join('');
