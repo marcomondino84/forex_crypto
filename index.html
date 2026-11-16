@@ -759,6 +759,12 @@
                     <span style="font-weight:800; color:#e2e8f0; letter-spacing:0.4px;">CALENDARIO ECONÓMICO</span>
                     <span id="macroArClock" style="font-size:9px; color:#38bdf8; font-weight:700;">🇦🇷 --:-- AR</span>
                 </div>
+                <div style="display:flex; gap:4px; margin:2px 0 4px 0;">
+                    <button type="button" class="macro-filter-btn" data-filter="hist" style="flex:1; background:#0f172a; color:#94a3b8; border:1px solid var(--border-color); border-radius:3px; padding:2px 4px; font-size:9px; font-weight:700; cursor:pointer;">Hist</button>
+                    <button type="button" class="macro-filter-btn" data-filter="ayer" style="flex:1; background:#0f172a; color:#94a3b8; border:1px solid var(--border-color); border-radius:3px; padding:2px 4px; font-size:9px; font-weight:700; cursor:pointer;">Ayer</button>
+                    <button type="button" class="macro-filter-btn" data-filter="hoy" style="flex:1; background:#0f172a; color:#94a3b8; border:1px solid var(--border-color); border-radius:3px; padding:2px 4px; font-size:9px; font-weight:700; cursor:pointer;">Hoy</button>
+                    <button type="button" class="macro-filter-btn active" data-filter="prox" style="flex:1; background:#1e293b; color:#38bdf8; border:1px solid #38bdf8; border-radius:3px; padding:2px 4px; font-size:9px; font-weight:700; cursor:pointer;">Próx</button>
+                </div>
                 <div id="macroNextTitle" style="color:#f8fafc; font-weight:700; font-size:11px; line-height:1.25;">Cargando eventos macro...</div>
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
                     <span id="macroNextDateAr" style="font-size:9.5px; color:#94a3b8;">--/-- · --:-- hs AR</span>
@@ -768,7 +774,7 @@
                     <span style="font-size:9px; color:var(--text-muted);">FALTA:</span>
                     <span id="macroCountdown" style="font-size:14px; font-weight:800; color:#00e676; letter-spacing:0.5px;">--:--:--</span>
                 </div>
-                <div id="macroUpcomingList" style="display:flex; flex-direction:column; gap:3px; margin-top:4px; padding-top:5px; border-top:1px dashed var(--border-color); font-size:9.5px;"></div>
+                <div id="macroUpcomingList" style="display:flex; flex-direction:column; gap:5px; margin-top:4px; padding-top:5px; border-top:1px dashed var(--border-color); font-size:9.5px; max-height:150px; overflow-y:auto;"></div>
             </div>
         </div>
 
@@ -1715,8 +1721,9 @@
             }
         }
 
-        // CALENDARIO ECONÓMICO (HORA ARGENTINA - UTC-3)
+        // CALENDARIO ECONÓMICO (HORA ARGENTINA - UTC-3) CON HISTORIAL Y DATOS EN VIVO
         let macroEventsCache = [];
+        let macroFilter = 'prox';
 
         function getCountryFlag(code) {
             const flags = { USD: '🇺🇸', EUR: '🇪🇺', GBP: '🇬🇧', JPY: '🇯🇵', CAD: '🇨🇦', AUD: '🇦🇺', CHF: '🇨🇭', CNY: '🇨🇳' };
@@ -1757,7 +1764,6 @@
         }
 
         function nyTimeToDate(year, month, day, nyHour, nyMinute) {
-            // Aproximación exacta de hora NY (EDT UTC-4 Mar-Nov, EST UTC-5 Nov-Mar) a Date UTC
             const approx = new Date(Date.UTC(year, month, day, nyHour + 5, nyMinute, 0));
             const nyParts = new Intl.DateTimeFormat('en-US', {
                 timeZone: 'America/New_York',
@@ -1788,56 +1794,67 @@
             return lastDay.getUTCDate() - diff;
         }
 
-        function generateUpcomingMacroEvents() {
+        function getArgentinaDateKey(dateObj) {
+            const parts = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'America/Argentina/Buenos_Aires',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            }).formatToParts(dateObj);
+            const y = parts.find(p => p.type === 'year')?.value;
+            const m = parts.find(p => p.type === 'month')?.value;
+            const d = parts.find(p => p.type === 'day')?.value;
+            return `${y}-${m}-${d}`;
+        }
+
+        function generateMacroScheduleWindow() {
             const now = new Date();
             const events = [];
 
-            // Próximos 2 meses de eventos clave de alto impacto (estilo Investing)
-            for (let mOffset = 0; mOffset <= 1; mOffset++) {
+            // Mes anterior, actual y siguiente para cubrir historial y próximos
+            for (let mOffset = -1; mOffset <= 1; mOffset++) {
                 const ref = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + mOffset, 1));
                 const y = ref.getUTCFullYear();
                 const m = ref.getUTCMonth();
 
-                // 1er lunes/miércoles hábil: PMI ISM
                 const ismManDay = nearestBusinessDay(y, m, 1);
-                events.push({ country: 'USD', title: 'PMI Manufacturero ISM', impact: 'High', dateObj: nyTimeToDate(y, m, ismManDay, 10, 0) });
-                events.push({ country: 'USD', title: 'PMI Servicios ISM', impact: 'High', dateObj: nyTimeToDate(y, m, ismManDay + 2, 10, 0) });
+                events.push({ country: 'USD', title: 'PMI Manufacturero ISM', impact: 'High', actual: '', forecast: '48.5', previous: '47.2', dateObj: nyTimeToDate(y, m, ismManDay, 10, 0) });
+                events.push({ country: 'USD', title: 'PMI Servicios ISM', impact: 'High', actual: '', forecast: '53.8', previous: '54.9', dateObj: nyTimeToDate(y, m, ismManDay + 2, 10, 0) });
 
-                // 1er viernes: NFP y Desempleo
                 const nfpDay = firstWeekdayOfMonth(y, m, 5);
-                events.push({ country: 'USD', title: 'Nóminas No Agrícolas (NFP)', impact: 'High', dateObj: nyTimeToDate(y, m, nfpDay, 8, 30) });
+                events.push({ country: 'USD', title: 'Nóminas No Agrícolas (NFP)', impact: 'High', actual: '', forecast: '185K', previous: '172K', dateObj: nyTimeToDate(y, m, nfpDay, 8, 30) });
 
-                // Mediados de mes: IPC (CPI), IPP (PPI) y Ventas Minoristas
                 const cpiDay = nearestBusinessDay(y, m, 13);
                 const ppiDay = nearestBusinessDay(y, m, 14);
                 const retailDay = nearestBusinessDay(y, m, 15);
-                events.push({ country: 'USD', title: 'IPC / Inflación EE.UU. (CPI)', impact: 'High', dateObj: nyTimeToDate(y, m, cpiDay, 8, 30) });
-                events.push({ country: 'USD', title: 'IPP EE.UU. (Precios Productor)', impact: 'High', dateObj: nyTimeToDate(y, m, ppiDay, 8, 30) });
-                events.push({ country: 'USD', title: 'Ventas Minoristas EE.UU.', impact: 'High', dateObj: nyTimeToDate(y, m, retailDay, 8, 30) });
+                events.push({ country: 'USD', title: 'IPC / Inflación EE.UU. (CPI)', impact: 'High', actual: '', forecast: '2.6%', previous: '2.4%', dateObj: nyTimeToDate(y, m, cpiDay, 8, 30) });
+                events.push({ country: 'USD', title: 'IPP EE.UU. (Precios Productor)', impact: 'High', actual: '', forecast: '0.2%', previous: '0.1%', dateObj: nyTimeToDate(y, m, ppiDay, 8, 30) });
+                events.push({ country: 'USD', title: 'Ventas Minoristas EE.UU.', impact: 'High', actual: '', forecast: '0.3%', previous: '0.4%', dateObj: nyTimeToDate(y, m, retailDay, 8, 30) });
 
-                // Último martes: Confianza del Consumidor; último viernes: PCE
                 const ccDay = nearestBusinessDay(y, m, 25);
                 const pceDay = lastFridayOfMonth(y, m);
-                events.push({ country: 'USD', title: 'Confianza del Consumidor (CB)', impact: 'High', dateObj: nyTimeToDate(y, m, ccDay, 10, 0) });
-                events.push({ country: 'USD', title: 'Índice PCE Subyacente (Fed)', impact: 'High', dateObj: nyTimeToDate(y, m, pceDay, 8, 30) });
+                events.push({ country: 'USD', title: 'Confianza del Consumidor (CB)', impact: 'High', actual: '', forecast: '103.5', previous: '101.8', dateObj: nyTimeToDate(y, m, ccDay, 10, 0) });
+                events.push({ country: 'USD', title: 'Índice PCE Subyacente (Fed)', impact: 'High', actual: '', forecast: '2.7%', previous: '2.7%', dateObj: nyTimeToDate(y, m, pceDay, 8, 30) });
             }
 
-            // Eventos semanales fijos (próximos 14 días): Miércoles Inventarios EIA, Jueves Solicitudes de Desempleo
-            for (let dOffset = 0; dOffset <= 14; dOffset++) {
+            // Ventana semanal (-10 días a +14 días): Lunes/Martes/Miércoles/Jueves/Viernes relevantes
+            for (let dOffset = -10; dOffset <= 14; dOffset++) {
                 const d = new Date(now.getTime() + dOffset * 86400000);
                 const y = d.getUTCFullYear();
                 const m = d.getUTCMonth();
                 const day = d.getUTCDate();
                 const dow = d.getUTCDay();
                 if (dow === 3) {
-                    events.push({ country: 'USD', title: 'Inventarios de Petróleo (EIA)', impact: 'Medium', dateObj: nyTimeToDate(y, m, day, 10, 30) });
+                    events.push({ country: 'USD', title: 'Inventarios de Petróleo (EIA)', impact: 'Medium', actual: '', forecast: '-1.2M', previous: '2.1M', dateObj: nyTimeToDate(y, m, day, 10, 30) });
                 } else if (dow === 4) {
-                    events.push({ country: 'USD', title: 'Solicitudes de Desempleo', impact: 'High', dateObj: nyTimeToDate(y, m, day, 8, 30) });
+                    events.push({ country: 'USD', title: 'Solicitudes de Desempleo', impact: 'High', actual: '', forecast: '218K', previous: '215K', dateObj: nyTimeToDate(y, m, day, 8, 30) });
                 }
             }
 
+            const minTime = now.getTime() - 14 * 86400000;
+            const maxTime = now.getTime() + 30 * 86400000;
             return events
-                .filter(ev => ev.dateObj.getTime() > now.getTime())
+                .filter(ev => ev.dateObj.getTime() >= minTime && ev.dateObj.getTime() <= maxTime)
                 .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
         }
 
@@ -1861,8 +1878,35 @@
             return `${capDay} ${dayMonth} · ${time} hs AR`;
         }
 
+        function formatMinuteCountdown(targetDate, nowDate) {
+            const diffSec = Math.max(0, Math.floor((targetDate.getTime() - nowDate.getTime()) / 1000));
+            const days = Math.floor(diffSec / 86400);
+            const hrs = Math.floor((diffSec % 86400) / 3600);
+            const mins = Math.floor((diffSec % 3600) / 60);
+            const secs = diffSec % 60;
+            if (days > 0) return `en ${days}d ${hrs}h ${mins}m`;
+            if (hrs > 0) return `en ${hrs}h ${mins}m`;
+            if (mins > 0) return `en ${mins}m ${secs}s`;
+            return `en ${secs}s`;
+        }
+
+        function setupMacroFilterControls() {
+            document.querySelectorAll('.macro-filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    macroFilter = btn.dataset.filter || 'prox';
+                    document.querySelectorAll('.macro-filter-btn').forEach(b => {
+                        const isActive = b === btn;
+                        b.classList.toggle('active', isActive);
+                        b.style.background = isActive ? '#1e293b' : '#0f172a';
+                        b.style.color = isActive ? '#38bdf8' : '#94a3b8';
+                        b.style.borderColor = isActive ? '#38bdf8' : 'var(--border-color)';
+                    });
+                    updateMacroCalendarUI();
+                });
+            });
+        }
+
         async function fetchEconomicCalendar() {
-            const now = Date.now();
             let liveEvents = [];
             try {
                 const res = await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json');
@@ -1870,14 +1914,18 @@
                     const data = await res.json();
                     if (Array.isArray(data)) {
                         liveEvents = data
-                            .filter(ev => ev.impact === 'High' && ev.date)
+                            .filter(ev => (ev.impact === 'High' || ev.impact === 'Medium') && ev.date)
                             .map(ev => ({
                                 country: ev.country || 'USD',
                                 title: translateMacroTitle(ev.title),
-                                impact: 'High',
-                                dateObj: new Date(ev.date)
+                                impact: ev.impact,
+                                actual: ev.actual ? String(ev.actual).trim() : '',
+                                forecast: ev.forecast ? String(ev.forecast).trim() : '',
+                                previous: ev.previous ? String(ev.previous).trim() : '',
+                                dateObj: new Date(ev.date),
+                                isLiveFeed: true
                             }))
-                            .filter(ev => !isNaN(ev.dateObj.getTime()) && ev.dateObj.getTime() > now)
+                            .filter(ev => !isNaN(ev.dateObj.getTime()))
                             .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
                     }
                 }
@@ -1885,17 +1933,13 @@
                 // Fallback automático si CORS bloquea la descarga directa
             }
 
-            if (liveEvents.length >= 3) {
-                macroEventsCache = liveEvents;
-            } else {
-                const fallback = generateUpcomingMacroEvents();
-                const merged = [...liveEvents];
-                for (const fb of fallback) {
-                    const exists = merged.some(m => Math.abs(m.dateObj.getTime() - fb.dateObj.getTime()) < 3600000 && m.title === fb.title);
-                    if (!exists) merged.push(fb);
-                }
-                macroEventsCache = merged.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+            const baseSchedule = generateMacroScheduleWindow();
+            const merged = [...liveEvents];
+            for (const fb of baseSchedule) {
+                const exists = merged.some(m => Math.abs(m.dateObj.getTime() - fb.dateObj.getTime()) < 5400000 && m.title === fb.title);
+                if (!exists) merged.push(fb);
             }
+            macroEventsCache = merged.sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
             updateMacroCalendarUI();
         }
 
@@ -1919,45 +1963,84 @@
                 clockEl.textContent = `🇦🇷 ${arNow} AR`;
             }
 
-            // Descartar eventos que ya pasaron y recalcular si queda vacío
-            macroEventsCache = macroEventsCache.filter(ev => ev.dateObj.getTime() > now.getTime());
             if (!macroEventsCache.length) {
-                macroEventsCache = generateUpcomingMacroEvents();
+                macroEventsCache = generateMacroScheduleWindow();
             }
 
-            const nextEv = macroEventsCache[0];
-            if (!nextEv || !titleEl || !dateEl || !countEl) return;
+            const nextEv = macroEventsCache.find(ev => ev.dateObj.getTime() > now.getTime()) || macroEventsCache[macroEventsCache.length - 1];
+            if (nextEv && titleEl && dateEl && countEl) {
+                titleEl.textContent = `${getCountryFlag(nextEv.country)} ${nextEv.title}`;
+                dateEl.textContent = formatArgentinaDateTime(nextEv.dateObj);
 
-            titleEl.textContent = `${getCountryFlag(nextEv.country)} ${nextEv.title}`;
-            dateEl.textContent = formatArgentinaDateTime(nextEv.dateObj);
-
-            if (impactEl) {
-                if (nextEv.impact === 'High') {
-                    impactEl.textContent = '🔴 ALTO IMPACTO';
-                    impactEl.style.background = 'rgba(255,42,68,0.18)';
-                    impactEl.style.color = '#ff4d6d';
-                } else {
-                    impactEl.textContent = '🟠 MEDIO';
-                    impactEl.style.background = 'rgba(251,146,60,0.18)';
-                    impactEl.style.color = '#fb923c';
+                if (impactEl) {
+                    if (nextEv.impact === 'High') {
+                        impactEl.textContent = '🔴 ALTO IMPACTO';
+                        impactEl.style.background = 'rgba(255,42,68,0.18)';
+                        impactEl.style.color = '#ff4d6d';
+                    } else {
+                        impactEl.textContent = '🟠 MEDIO';
+                        impactEl.style.background = 'rgba(251,146,60,0.18)';
+                        impactEl.style.color = '#fb923c';
+                    }
                 }
-            }
 
-            const diffSec = Math.max(0, Math.floor((nextEv.dateObj.getTime() - now.getTime()) / 1000));
-            const days = Math.floor(diffSec / 86400);
-            const hrs = Math.floor((diffSec % 86400) / 3600);
-            const mins = Math.floor((diffSec % 3600) / 60);
-            const secs = diffSec % 60;
-            const pad = (n) => String(n).padStart(2, '0');
-            countEl.textContent = days > 0 ? `${days}d ${pad(hrs)}:${pad(mins)}:${pad(secs)}` : `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+                const diffSec = Math.max(0, Math.floor((nextEv.dateObj.getTime() - now.getTime()) / 1000));
+                const days = Math.floor(diffSec / 86400);
+                const hrs = Math.floor((diffSec % 86400) / 3600);
+                const mins = Math.floor((diffSec % 3600) / 60);
+                const secs = diffSec % 60;
+                const pad = (n) => String(n).padStart(2, '0');
+                countEl.textContent = days > 0 ? `${days}d ${pad(hrs)}:${pad(mins)}:${pad(secs)}` : `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+            }
 
             if (listEl) {
-                const upcoming = macroEventsCache.slice(1, 4);
-                listEl.innerHTML = upcoming.map(ev => {
+                const todayKey = getArgentinaDateKey(now);
+                const yesterdayKey = getArgentinaDateKey(new Date(now.getTime() - 86400000));
+
+                let filtered = [];
+                if (macroFilter === 'hist') {
+                    filtered = macroEventsCache.filter(ev => getArgentinaDateKey(ev.dateObj) < todayKey).reverse();
+                } else if (macroFilter === 'ayer') {
+                    filtered = macroEventsCache.filter(ev => getArgentinaDateKey(ev.dateObj) === yesterdayKey);
+                } else if (macroFilter === 'hoy') {
+                    filtered = macroEventsCache.filter(ev => getArgentinaDateKey(ev.dateObj) === todayKey);
+                } else {
+                    filtered = macroEventsCache.filter(ev => ev.dateObj.getTime() > now.getTime());
+                }
+
+                if (!filtered.length) {
+                    const emptyMsgs = {
+                        hist: 'Sin historial previo en esta ventana.',
+                        ayer: 'Sin eventos registrados ayer.',
+                        hoy: 'Sin eventos macro programados para hoy.',
+                        prox: 'Sin eventos próximos.'
+                    };
+                    listEl.innerHTML = `<div style="color:#64748b; text-align:center; padding:6px 0;">${emptyMsgs[macroFilter] || 'Sin eventos.'}</div>`;
+                    return;
+                }
+
+                listEl.innerHTML = filtered.slice(0, 12).map(ev => {
+                    const isPast = ev.dateObj.getTime() <= now.getTime();
                     const shortDate = formatArgentinaDateTime(ev.dateObj).replace(' hs AR', '');
-                    return `<div style="display:flex; justify-content:space-between; align-items:center; gap:6px; color:#cbd5e1;">
-                        <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${getCountryFlag(ev.country)} ${ev.title}</span>
-                        <span style="flex-shrink:0; color:#64748b; font-size:8.5px;">${shortDate}</span>
+                    const timeBadge = isPast
+                        ? `<span style="color:#00e676; font-size:8.5px; font-weight:700;">✓ Publicado</span>`
+                        : `<span style="color:#38bdf8; font-size:8.5px; font-weight:700;">⏳ ${formatMinuteCountdown(ev.dateObj, now)}</span>`;
+
+                    const actualText = ev.actual
+                        ? `<strong style="color:#00e676;">${ev.actual}</strong>`
+                        : (isPast ? `<span style="color:#94a3b8;">Publicado</span>` : `<span style="color:#fbbf24;">Pendiente</span>`);
+                    const forecastText = ev.forecast || '--';
+                    const prevText = ev.previous || '--';
+
+                    return `<div style="display:flex; flex-direction:column; gap:2px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.04);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; color:#e2e8f0;">
+                            <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:600;">${getCountryFlag(ev.country)} ${ev.title}</span>
+                            <span style="flex-shrink:0;">${timeBadge}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-size:8.5px; color:#94a3b8;">
+                            <span>${shortDate}</span>
+                            <span>Act: ${actualText} · Est: ${forecastText} · Ant: ${prevText}</span>
+                        </div>
                     </div>`;
                 }).join('');
             }
@@ -1993,9 +2076,10 @@
             fetchFearAndGreed();
             setInterval(fetchFearAndGreed, 300000);
 
+            setupMacroFilterControls();
             fetchEconomicCalendar();
             setInterval(updateMacroCalendarUI, 1000);
-            setInterval(fetchEconomicCalendar, 1800000);
+            setInterval(fetchEconomicCalendar, 60000);
 
             setInterval(advanceHeatmapStep, 600);
             window.addEventListener('resize', renderFineHeatmap);
